@@ -56,7 +56,6 @@ namespace StrmAssistant.Mod
         private static PropertyInfo iso_639_1;
 
         private static MethodInfo _getAvailableRemoteImages;
-        private static FieldInfo _remoteImageTaskResult;
 
         private static readonly ConcurrentDictionary<string, ContextItem> CurrentItemsByTmdbId =
             new ConcurrentDictionary<string, ContextItem>();
@@ -154,9 +153,6 @@ namespace StrmAssistant.Mod
                         typeof(BaseItem), typeof(LibraryOptions), typeof(RemoteImageQuery),
                         typeof(IDirectoryService), typeof(CancellationToken)
                     }, null);
-                _remoteImageTaskResult =
-                    typeof(Task<IEnumerable<RemoteImageInfo>>).GetField("m_result",
-                        BindingFlags.NonPublic | BindingFlags.Instance);
             }
             else
             {
@@ -164,23 +160,20 @@ namespace StrmAssistant.Mod
                 PatchTracker.IsSupported = false;
             }
         }
-        
+
         protected override void Prepare(bool apply)
         {
             if (_movieDbAssembly != null)
             {
                 PatchUnpatch(PatchTracker, apply, _getMovieInfo, postfix: nameof(GetMovieInfoTmdbPostfix));
-                PatchUnpatch(PatchTracker, apply, _ensureSeriesInfo,
-                    postfix: nameof(EnsureSeriesInfoTmdbPostfix));
+                PatchUnpatch(PatchTracker, apply, _ensureSeriesInfo, postfix: nameof(EnsureSeriesInfoTmdbPostfix));
                 PatchUnpatch(PatchTracker, apply, _getBackdrops, postfix: nameof(GetBackdropsPostfix));
             }
 
             if (_tvdbAssembly != null)
             {
-                PatchUnpatch(PatchTracker, apply, _ensureMovieInfoTvdb,
-                    postfix: nameof(EnsureMovieInfoTvdbPostfix));
-                PatchUnpatch(PatchTracker, apply, _ensureSeriesInfoTvdb,
-                    postfix: nameof(EnsureSeriesInfoTvdbPostfix));
+                PatchUnpatch(PatchTracker, apply, _ensureMovieInfoTvdb, postfix: nameof(EnsureMovieInfoTvdbPostfix));
+                PatchUnpatch(PatchTracker, apply, _ensureSeriesInfoTvdb, postfix: nameof(EnsureSeriesInfoTvdbPostfix));
             }
 
             PatchUnpatch(PatchTracker, apply, _getAvailableRemoteImages,
@@ -270,28 +263,21 @@ namespace StrmAssistant.Mod
         private static void GetMovieInfoTmdbPostfix(BaseItem item, string language, IJsonSerializer jsonSerializer,
             CancellationToken cancellationToken, Task __result)
         {
-            __result.ContinueWith(task =>
-                {
-                    if (task.IsCompletedSuccessfully)
-                    {
-                        if (_movieDataTmdbTaskResult == null)
-                            _movieDataTmdbTaskResult = task.GetType().GetProperty("Result");
+            if (_movieDataTmdbTaskResult is null)
+                _movieDataTmdbTaskResult = __result.GetType().GetProperty("Result");
 
-                        var movieData = _movieDataTmdbTaskResult?.GetValue(task);
-                        if (movieData != null && _tmdbIdMovieDataTmdb != null && _imdbIdMovieDataTmdb != null && _originalLanguageMovieDataTmdb != null)
-                        {
-                            var tmdbId = _tmdbIdMovieDataTmdb.GetValue(movieData).ToString();
-                            var imdbId = _imdbIdMovieDataTmdb.GetValue(movieData) as string;
-                            var originalLanguage = _originalLanguageMovieDataTmdb.GetValue(movieData) as string;
-                            if ((!string.IsNullOrEmpty(tmdbId) || !string.IsNullOrEmpty(imdbId)) &&
-                                !string.IsNullOrEmpty(originalLanguage))
-                            {
-                                UpdateOriginalLanguage(tmdbId, imdbId, null, originalLanguage);
-                            }
-                        }
-                    }
-                }, cancellationToken, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default)
-                .ConfigureAwait(false);
+            var movieData = _movieDataTmdbTaskResult?.GetValue(__result);
+            if (movieData != null && _tmdbIdMovieDataTmdb != null && _imdbIdMovieDataTmdb != null && _originalLanguageMovieDataTmdb != null)
+            {
+                var tmdbId = _tmdbIdMovieDataTmdb.GetValue(movieData)?.ToString();
+                var imdbId = _imdbIdMovieDataTmdb.GetValue(movieData) as string;
+                var originalLanguage = _originalLanguageMovieDataTmdb.GetValue(movieData) as string;
+                if ((!string.IsNullOrEmpty(tmdbId) || !string.IsNullOrEmpty(imdbId)) &&
+                    !string.IsNullOrEmpty(originalLanguage))
+                {
+                    UpdateOriginalLanguage(tmdbId, imdbId, null, originalLanguage);
+                }
+            }
         }
 
         [HarmonyPostfix]
@@ -300,28 +286,24 @@ namespace StrmAssistant.Mod
         {
             if (WasCalledByMethod(_movieDbAssembly, "FetchImages")) WasCalledByImageProvider.Value = true;
 
-            __result.ContinueWith(task =>
-                {
-                    if (task.IsCompletedSuccessfully && WasCalledByImageProvider.Value)
-                    {
-                        if (_seriesDataTmdbTaskResult == null)
-                            _seriesDataTmdbTaskResult = task.GetType().GetProperty("Result");
+            __result.GetAwaiter().GetResult();
 
-                        var seriesInfo = _seriesDataTmdbTaskResult?.GetValue(task);
-                        if (seriesInfo != null && _tmdbIdSeriesDataTmdb != null &&
-                            _languagesSeriesDataTmdb != null)
-                        {
-                            var id = _tmdbIdSeriesDataTmdb.GetValue(seriesInfo)?.ToString();
-                            var originalLanguage = (_languagesSeriesDataTmdb.GetValue(seriesInfo) as List<string>)
-                                ?.FirstOrDefault();
-                            if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(originalLanguage))
-                            {
-                                UpdateOriginalLanguage(id, null, null, originalLanguage);
-                            }
-                        }
-                    }
-                }, cancellationToken, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default)
-                .ConfigureAwait(false);
+            if (!WasCalledByImageProvider.Value) return;
+
+            if (_seriesDataTmdbTaskResult is null)
+                _seriesDataTmdbTaskResult = __result.GetType().GetProperty("Result");
+
+            var seriesInfo = _seriesDataTmdbTaskResult?.GetValue(__result);
+            if (seriesInfo != null && _tmdbIdSeriesDataTmdb != null && _languagesSeriesDataTmdb != null)
+            {
+                var id = _tmdbIdSeriesDataTmdb.GetValue(seriesInfo)?.ToString();
+                var originalLanguage = (_languagesSeriesDataTmdb.GetValue(seriesInfo) as List<string>)
+                    ?.FirstOrDefault();
+                if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(originalLanguage))
+                {
+                    UpdateOriginalLanguage(id, null, null, originalLanguage);
+                }
+            }
         }
 
         [HarmonyPostfix]
@@ -330,28 +312,24 @@ namespace StrmAssistant.Mod
         {
             if (WasCalledByMethod(_tvdbAssembly, "GetImages")) WasCalledByImageProvider.Value = true;
 
-            __result.ContinueWith(task =>
-                {
-                    if (task.IsCompletedSuccessfully && WasCalledByImageProvider.Value)
-                    {
-                        if (_movieDataTvdbTaskResult == null)
-                            _movieDataTvdbTaskResult = task.GetType().GetProperty("Result");
+            __result.GetAwaiter().GetResult();
 
-                        var movieData = _movieDataTvdbTaskResult?.GetValue(task);
-                        if (movieData != null && _tvdbIdMovieDataTvdb != null &&
-                            _originalLanguageMovieDataTvdb != null)
-                        {
-                            var id = _tvdbIdMovieDataTvdb.GetValue(movieData)?.ToString();
-                            var originalLanguage = _originalLanguageMovieDataTvdb.GetValue(movieData) as string;
-                            if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(originalLanguage))
-                            {
-                                var convertedLanguage = Plugin.MetadataApi.ConvertToServerLanguage(originalLanguage);
-                                UpdateOriginalLanguage(null, null, id, convertedLanguage);
-                            }
-                        }
-                    }
-                }, cancellationToken, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default)
-                .ConfigureAwait(false);
+            if (!WasCalledByImageProvider.Value) return;
+
+            if (_movieDataTvdbTaskResult is null)
+                _movieDataTvdbTaskResult = __result.GetType().GetProperty("Result");
+
+            var movieData = _movieDataTvdbTaskResult?.GetValue(__result);
+            if (movieData != null && _tvdbIdMovieDataTvdb != null && _originalLanguageMovieDataTvdb != null)
+            {
+                var id = _tvdbIdMovieDataTvdb.GetValue(movieData)?.ToString();
+                var originalLanguage = _originalLanguageMovieDataTvdb.GetValue(movieData) as string;
+                if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(originalLanguage))
+                {
+                    var convertedLanguage = Plugin.MetadataApi.ConvertToServerLanguage(originalLanguage);
+                    UpdateOriginalLanguage(null, null, id, convertedLanguage);
+                }
+            }
         }
 
         [HarmonyPostfix]
@@ -360,28 +338,25 @@ namespace StrmAssistant.Mod
         {
             if (WasCalledByMethod(_tvdbAssembly, "GetImages")) WasCalledByImageProvider.Value = true;
 
-            __result.ContinueWith(task =>
-                {
-                    if (task.IsCompletedSuccessfully && WasCalledByImageProvider.Value)
-                    {
-                        if (_seriesDataTvdbTaskResult == null)
-                            _seriesDataTvdbTaskResult = task.GetType().GetProperty("Result");
+            __result.GetAwaiter().GetResult();
 
-                        var seriesData = _seriesDataTvdbTaskResult?.GetValue(task);
-                        if (seriesData != null && _tvdbIdSeriesDataTvdb != null &&
-                            _originalLanguageSeriesDataTvdb != null)
-                        {
-                            var id = _tvdbIdSeriesDataTvdb.GetValue(seriesData)?.ToString();
-                            var originalLanguage = _originalLanguageSeriesDataTvdb.GetValue(seriesData) as string;
-                            if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(originalLanguage))
-                            {
-                                var convertedLanguage = Plugin.MetadataApi.ConvertToServerLanguage(originalLanguage);
-                                UpdateOriginalLanguage(null, null, id, convertedLanguage);
-                            }
-                        }
-                    }
-                }, cancellationToken, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default)
-                .ConfigureAwait(false);
+            if (!WasCalledByImageProvider.Value) return;
+
+            if (_seriesDataTvdbTaskResult is null)
+                _seriesDataTvdbTaskResult = __result.GetType().GetProperty("Result");
+
+            var seriesData = _seriesDataTvdbTaskResult?.GetValue(__result);
+            if (seriesData != null && _tvdbIdSeriesDataTvdb != null &&
+                _originalLanguageSeriesDataTvdb != null)
+            {
+                var id = _tvdbIdSeriesDataTvdb.GetValue(seriesData)?.ToString();
+                var originalLanguage = _originalLanguageSeriesDataTvdb.GetValue(seriesData) as string;
+                if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(originalLanguage))
+                {
+                    var convertedLanguage = Plugin.MetadataApi.ConvertToServerLanguage(originalLanguage);
+                    UpdateOriginalLanguage(null, null, id, convertedLanguage);
+                }
+            }
         }
 
         [HarmonyPostfix]
@@ -421,42 +396,38 @@ namespace StrmAssistant.Mod
         }
 
         [HarmonyPostfix]
-        private static void GetAvailableRemoteImagesPostfix(BaseItem item, LibraryOptions libraryOptions,
-            ref RemoteImageQuery query, IDirectoryService directoryService, CancellationToken cancellationToken,
-            Task<IEnumerable<RemoteImageInfo>> __result)
+        private static Task<IEnumerable<RemoteImageInfo>> GetAvailableRemoteImagesPostfix(
+            Task<IEnumerable<RemoteImageInfo>> __result, BaseItem item, LibraryOptions libraryOptions,
+            RemoteImageQuery query, IDirectoryService directoryService, CancellationToken cancellationToken)
         {
-            __result.ContinueWith(task =>
+            var result = __result.Result;
+
+            if (result is null) return Task.FromResult(Enumerable.Empty<RemoteImageInfo>());
+
+            var originalLanguage = GetOriginalLanguage(item);
+            var libraryPreferredImageLanguage = libraryOptions.PreferredImageLanguage?.Split('-')[0];
+
+            var remoteImages = result.ToList();
+
+            foreach (var image in remoteImages.Where(image => image.Type == ImageType.Backdrop))
+            {
+                var match = BackdropByLanguage
+                    .FirstOrDefault(kvp => image.Url.EndsWith(kvp.Key, StringComparison.Ordinal)).Key;
+
+                if (match != null)
                 {
-                    if (task.IsCompletedSuccessfully)
-                    {
-                        var originalLanguage = GetOriginalLanguage(item);
-                        var libraryPreferredImageLanguage = libraryOptions.PreferredImageLanguage?.Split('-')[0];
+                    image.Language = BackdropByLanguage[match];
+                    BackdropByLanguage.TryRemove(match, out _);
+                }
+            }
 
-                        var remoteImages = task.Result.ToList();
+            var reorderedImages = remoteImages.OrderBy(i =>
+                !string.IsNullOrEmpty(libraryPreferredImageLanguage) && string.Equals(i.Language,
+                    libraryPreferredImageLanguage, StringComparison.OrdinalIgnoreCase) ? 0 :
+                !string.IsNullOrEmpty(originalLanguage) && string.Equals(i.Language, originalLanguage,
+                    StringComparison.OrdinalIgnoreCase) ? 1 : 2);
 
-                        foreach (var image in remoteImages.Where(image => image.Type == ImageType.Backdrop))
-                        {
-                            var match = BackdropByLanguage.FirstOrDefault(kvp =>
-                                image.Url.EndsWith(kvp.Key, StringComparison.Ordinal)).Key;
-
-                            if (match != null)
-                            {
-                                image.Language = BackdropByLanguage[match];
-                                BackdropByLanguage.TryRemove(match, out _);
-                            }
-                        }
-
-                        var reorderedImages = remoteImages.OrderBy(i =>
-                                !string.IsNullOrEmpty(libraryPreferredImageLanguage) && string.Equals(i.Language,
-                                    libraryPreferredImageLanguage, StringComparison.OrdinalIgnoreCase) ? 0 :
-                                !string.IsNullOrEmpty(originalLanguage) && string.Equals(i.Language, originalLanguage,
-                                    StringComparison.OrdinalIgnoreCase) ? 1 : 2)
-                            .ToList();
-
-                        _remoteImageTaskResult?.SetValue(__result, reorderedImages);
-                    }
-                }, cancellationToken, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default)
-                .ConfigureAwait(false);
+            return Task.FromResult(reorderedImages.AsEnumerable());
         }
     }
 }
