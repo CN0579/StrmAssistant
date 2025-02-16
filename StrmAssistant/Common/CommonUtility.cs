@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -179,13 +180,9 @@ namespace StrmAssistant.Common
             if (!Directory.Exists(directoryPath))
                 return false;
 
-            foreach (var subdirectory in Directory.EnumerateDirectories(directoryPath))
-                return false;
+            var entries = Directory.EnumerateFileSystemEntries(directoryPath).Take(1);
 
-            foreach (var file in Directory.EnumerateFiles(directoryPath))
-                return false;
-
-            return true;
+            return !entries.Any();
         }
 
         public static bool IsSymlink(string path)
@@ -218,13 +215,15 @@ namespace StrmAssistant.Common
         {
             public bool Equals(FileSystemMetadata x, FileSystemMetadata y)
             {
-                if (x == null || y == null) return false;
-                return x.FullName == y.FullName;
+                if (ReferenceEquals(x, y)) return true;
+                if (x is null || y is null) return false;
+                return string.Equals(x.FullName, y.FullName, StringComparison.Ordinal);
             }
 
             public int GetHashCode(FileSystemMetadata obj)
             {
-                return obj.FullName.GetHashCode();
+                if (obj is null) throw new ArgumentNullException(nameof(obj));
+                return obj.FullName?.GetHashCode() ?? 0;
             }
         }
     }

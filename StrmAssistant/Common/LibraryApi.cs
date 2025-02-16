@@ -878,14 +878,25 @@ namespace StrmAssistant.Common
                 }
             }
 
-            foreach (var path in deletePaths.Where(p => p.IsDirectory))
+            var folderPaths = new HashSet<FileSystemMetadata>(deletePaths.Where(p => p.IsDirectory),
+                new FileSystemMetadataComparer());
+
+            while (folderPaths.Any())
             {
+                var path = folderPaths.First();
+
                 try
                 {
                     if (IsDirectoryEmpty(path.FullName))
                     {
                         _logger.Info("DeepDelete - Attempting to delete empty folder: " + path.FullName);
                         _fileSystem.DeleteDirectory(path.FullName, true, true);
+
+                        var parentPath = _fileSystem.GetDirectoryName(path.FullName);
+                        if (parentPath != null)
+                        {
+                            folderPaths.Add(new FileSystemMetadata { FullName = parentPath, IsDirectory = true });
+                        }
                     }
                 }
                 catch (Exception e)
@@ -894,6 +905,8 @@ namespace StrmAssistant.Common
                     _logger.Error(e.Message);
                     _logger.Debug(e.StackTrace);
                 }
+
+                folderPaths.Remove(path);
             }
         }
     }
