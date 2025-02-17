@@ -48,8 +48,6 @@ namespace StrmAssistant.Mod
         private static MethodInfo _saveChapters;
         private static MethodInfo _deleteChapters;
 
-        private static readonly Dictionary<Type, PropertyInfo> RefreshLibraryPropertyCache =
-            new Dictionary<Type, PropertyInfo>();
         private static MethodInfo _getRefreshOptions;
 
         private static readonly AsyncLocal<long> ExclusiveItem = new AsyncLocal<long>();
@@ -448,22 +446,9 @@ namespace StrmAssistant.Mod
         }
 
         [HarmonyPrefix]
-        private static bool RefreshLibraryPrefix(object request)
+        private static void RefreshLibraryPrefix(IReturnVoid request)
         {
-            var requestType = request.GetType();
-
-            if (!RefreshLibraryPropertyCache.TryGetValue(requestType, out var refreshLibraryProperty))
-            {
-                refreshLibraryProperty = requestType.GetProperty("RefreshLibrary");
-                RefreshLibraryPropertyCache[requestType] = refreshLibraryProperty;
-            }
-
-            if (refreshLibraryProperty != null && refreshLibraryProperty.CanWrite)
-            {
-                refreshLibraryProperty.SetValue(request, false);
-            }
-
-            return true;
+            Traverse.Create(request).Property("RefreshLibrary").SetValue(false);
         }
 
         [HarmonyPrefix]
