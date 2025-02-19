@@ -1,4 +1,4 @@
-﻿define(['connectionManager', 'globalize', 'loading', 'toast', 'confirm'], function (connectionManager, globalize, loading, toast, confirm) {
+﻿define(['connectionManager', 'globalize', 'loading', 'toast', 'confirm', 'dialog'], function (connectionManager, globalize, loading, toast, confirm, dialog) {
 
     return {
         copy: function (libraryId) {
@@ -83,24 +83,58 @@
             });
         },
 
-        delver: function (itemId, itemName) {
-            confirm({
-                text: globalize.translate('ConfirmDeleteItems') + "\n\n" +
-                      itemName + "\n\n" +
-                      globalize.translate('AreYouSureToContinue'),
-                html: globalize.translate('ConfirmDeleteItems') +
-                      '<p><div class="secondaryText">' + itemName + "</div></p>" +
-                      '<p style="margin-bottom:0;">' + globalize.translate('AreYouSureToContinue') + "</p>",
-                title: globalize.translate('HeaderDeleteItem'),
-                confirmText: globalize.translate('Delete'),
-                primary: 'cancel',
-                centerText: !1
-            })
-            .then(function() {
+        delver: function (itemId, itemName, itemType) {
+            if (itemType === 'Movie') {
+                confirm({
+                    text: globalize.translate('ConfirmDeleteItems') + "\n\n" +
+                            itemName + "\n\n" +
+                            globalize.translate('AreYouSureToContinue'),
+                    html: globalize.translate('ConfirmDeleteItems') +
+                            '<p><div class="secondaryText">' + itemName + "</div></p>" +
+                            '<p style="margin-bottom:0;">' + globalize.translate('AreYouSureToContinue') + "</p>",
+                    title: globalize.translate('HeaderDeleteItem'),
+                    confirmText: globalize.translate('Delete'),
+                    primary: 'cancel',
+                    centerText: !1
+                })
+                .then(function() {
+                    deleteVersion(itemId);
+                });
+            } else {
+                const locale = globalize.getCurrentLocale().toLowerCase();
+                const deleteEpisode = (locale.startsWith('zh') || locale.startsWith('ja') || locale.startsWith('ko'))
+                            ? globalize.translate('Delete') + globalize.translate('Episode')
+                            : globalize.translate('Delete') + ' ' + globalize.translate('Episode');
+                const deleteSeason = (locale.startsWith('zh') || locale.startsWith('ja') || locale.startsWith('ko'))
+                            ? globalize.translate('Delete') + globalize.translate('Season')
+                            : globalize.translate('Delete') + ' ' + globalize.translate('Season');
+                dialog({
+                    text: globalize.translate('ConfirmDeleteItems') + "\n\n" +
+                            itemName + "\n\n" +
+                            globalize.translate('AreYouSureToContinue'),
+                    html: globalize.translate('ConfirmDeleteItems') +
+                            '<p><div class="secondaryText">' + itemName + "</div></p>" +
+                            '<p style="margin-bottom:0;">' + globalize.translate('AreYouSureToContinue') + "</p>",
+                    title: globalize.translate('HeaderDeleteItem'),
+                    buttons: [
+                        { name: globalize.translate("Cancel"), id: "cancel", type: "submit" },
+                        { name: deleteEpisode, id: "deleteepisode", type: "cancel" },
+                        { name: deleteSeason, id: "deleteseason", type: "cancel" }
+                    ],
+                    centerText: !1
+                })
+                .then(function(id) {
+                    if (id === 'deleteepisode') {
+                        deleteVersion(itemId);
+                    } else if (id === 'deleteseason') {
+                        deleteVersion(itemId, true);
+                    }
+                });
+            }
+            function deleteVersion(itemId, deleteParent = false) {
                 loading.show();
-
                 let apiClient = connectionManager.currentApiClient();
-                let deleteApi = apiClient.getUrl(`Items/${itemId}/DeleteVersion`);
+                let deleteApi = apiClient.getUrl(`Items/${itemId}/DeleteVersion${deleteParent ? `?DeleteParent=true` : ''}`);
                 apiClient.ajax({
                     type: "POST",
                     url: deleteApi,
@@ -113,7 +147,7 @@
                         (['zh-hk', 'zh-tw'].includes(locale) ? '\u524A\u9664\u7248\u672C\u6210\u529F' : 'Delete Version Success');
                     toast(confirmMessage);
                 });
-            });
+            }
         }
     };
 });

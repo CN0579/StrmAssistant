@@ -89,7 +89,7 @@ const strmAssistantCommandSource = {
             const itemName = matchingItem?.Name;
             if (itemId && itemName) {
                 return require(['components/strmassistant/strmassistant']).then(responses => {
-                    return responses[0].delver(itemId, itemName);
+                    return responses[0].delver(itemId, itemName, items[0].Type);
                 });
             }
         }

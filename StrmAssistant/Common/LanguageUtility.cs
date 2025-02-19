@@ -18,6 +18,9 @@ namespace StrmAssistant.Common
         private static readonly Regex DefaultJapaneseEpisodeNameRegex = new Regex(@"第\s*\d+\s*話", RegexOptions.Compiled);
         private static readonly Regex DefaultChineseCollectionNameRegex = new Regex(@"（系列）$", RegexOptions.Compiled);
         private static readonly Regex CleanPersonNameRegex = new Regex(@"\s+", RegexOptions.Compiled);
+        private static readonly Regex CleanEpisodeNameRegex =
+            new Regex(@"(\.)(?:S[0-9]+[eE][0-9]+|[sS][0-9]+[xX][0-9]+|[sS][0-9]+[-_][0-9]+|第[0-9一二三四五六七八九十百]+集)?",
+                RegexOptions.Compiled);
 
         public static readonly string[] MovieDbFallbackLanguages = { "zh-CN", "zh-SG", "zh-HK", "zh-TW", "ja-JP" };
         public static readonly string[] TvdbFallbackLanguages = { "zho", "zhtw", "yue", "jpn" };
@@ -78,6 +81,13 @@ namespace StrmAssistant.Common
             }
 
             return input.Trim();
+        }
+
+        public static string CleanEpisodeName(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return input;
+
+            return CleanEpisodeNameRegex.Replace(input, "");
         }
 
         public static List<string> GetMovieDbFallbackLanguages()
