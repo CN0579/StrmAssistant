@@ -5,6 +5,7 @@ using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.IO;
 using MediaBrowser.Model.Providers;
 using MediaBrowser.Model.Serialization;
 using StrmAssistant.Common;
@@ -12,6 +13,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -56,6 +58,9 @@ namespace StrmAssistant.Mod
         private static PropertyInfo iso_639_1;
 
         private static MethodInfo _getAvailableRemoteImages;
+        private static MethodInfo _addLocalImage;
+        private static MethodInfo _getLocalFiles;
+        private static MethodInfo _populateSeasonImagesFromSeasonOrSeriesFolder;
 
         private static readonly ConcurrentDictionary<string, ContextItem> CurrentItemsByTmdbId =
             new ConcurrentDictionary<string, ContextItem>();
@@ -153,6 +158,23 @@ namespace StrmAssistant.Mod
                         typeof(BaseItem), typeof(LibraryOptions), typeof(RemoteImageQuery),
                         typeof(IDirectoryService), typeof(CancellationToken)
                     }, null);
+
+                var embyLocalMetadata = Assembly.Load("Emby.LocalMetadata");
+                var localImageProvider = embyLocalMetadata.GetType("Emby.LocalMetadata.Images.LocalImageProvider");
+                _addLocalImage = localImageProvider.GetMethod("AddImage",
+                    BindingFlags.Instance | BindingFlags.NonPublic,
+                    new[]
+                    {
+                        typeof(FileSystemMetadata[]), typeof(List<LocalImageInfo>), typeof(string), typeof(ImageType)
+                    });
+                ReversePatch(PatchTracker, _addLocalImage, nameof(AddLocalImageStub));
+                _getLocalFiles = localImageProvider.GetMethod("GetFiles",
+                    BindingFlags.Instance | BindingFlags.NonPublic,
+                    new[] { typeof(BaseItem), typeof(LibraryOptions), typeof(bool), typeof(IDirectoryService) });
+                ReversePatch(PatchTracker, _getLocalFiles, nameof(GetLocalFilesStub));
+                _populateSeasonImagesFromSeasonOrSeriesFolder = localImageProvider
+                    .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
+                    .FirstOrDefault(m => m.Name.StartsWith("PopulateSeasonImagesFrom"));
             }
             else
             {
@@ -178,6 +200,8 @@ namespace StrmAssistant.Mod
 
             PatchUnpatch(PatchTracker, apply, _getAvailableRemoteImages,
                 prefix: nameof(GetAvailableRemoteImagesPrefix), postfix: nameof(GetAvailableRemoteImagesPostfix));
+            PatchUnpatch(PatchTracker, apply, _populateSeasonImagesFromSeasonOrSeriesFolder,
+                postfix: nameof(PopulateSeasonImagesFromSeasonOrSeriesFolderPostfix));
         }
 
         private static void AddContextItem(string tmdbId, string imdbId, string tvdbId)
@@ -428,6 +452,38 @@ namespace StrmAssistant.Mod
                     StringComparison.OrdinalIgnoreCase) ? 1 : 2);
 
             return Task.FromResult(reorderedImages.AsEnumerable());
+        }
+
+        [HarmonyReversePatch]
+        private static FileSystemMetadata[] GetLocalFilesStub(ILocalImageFileProvider instance, BaseItem item,
+            LibraryOptions libraryOptions, bool includeDirectories, IDirectoryService directoryService) =>
+            throw new NotImplementedException();
+
+        [HarmonyReversePatch]
+        private static bool AddLocalImageStub(ILocalImageFileProvider instance, FileSystemMetadata[] files,
+            List<LocalImageInfo> images, string name, ImageType type) =>
+            throw new NotImplementedException();
+
+        [HarmonyPostfix]
+        private static void PopulateSeasonImagesFromSeasonOrSeriesFolderPostfix(ILocalImageFileProvider __instance,
+            Season season, LibraryOptions libraryOptions, List<LocalImageInfo> images,
+            IDirectoryService directoryService)
+        {
+            var indexNumber = season.IndexNumber;
+
+            if (indexNumber.HasValue && indexNumber.Value == 0 && images.All(i => i.Type != ImageType.Primary))
+            {
+                var name = nameof(season) + indexNumber.Value.ToString("00", CultureInfo.InvariantCulture) + "-poster";
+
+                var seriesFolderFiles =
+                    GetLocalFilesStub(__instance, season.Series, libraryOptions, false, directoryService);
+                var result = AddLocalImageStub(__instance, seriesFolderFiles, images, name, ImageType.Primary);
+
+                if (result) return;
+
+                var seasonFolderFiles = GetLocalFilesStub(__instance, season, libraryOptions, false, directoryService);
+                AddLocalImageStub(__instance, seasonFolderFiles, images, name, ImageType.Primary);
+            }
         }
     }
 }
