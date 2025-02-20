@@ -447,7 +447,7 @@ namespace StrmAssistant.Common
             return false;
         }
 
-        public void QueueRefreshAlternateVersions(BaseItem item, MetadataRefreshOptions options, bool overwrite)
+        private void QueueRefreshAlternateVersions(BaseItem item, MetadataRefreshOptions options, bool force)
         {
             if (!(item is Video video)) return;
 
@@ -455,15 +455,16 @@ namespace StrmAssistant.Common
 
             if (!altIds.Any()) return;
 
-            var itemsToRefresh = overwrite
+            var itemsToRefresh = force
                 ? altIds
                 : _libraryManager.GetItemList(new InternalItemsQuery
-                {
-                    ItemIds = altIds.ToArray(),
-                    HasPath = true,
-                    HasAudioStream = false,
-                    MediaTypes = new[] { MediaType.Video }
-                }).Select(i => i.InternalId);
+                    {
+                        ItemIds = altIds.ToArray(),
+                        HasPath = true,
+                        HasAudioStream = false,
+                        MediaTypes = new[] { MediaType.Video }
+                    })
+                    .Select(i => i.InternalId);
 
             foreach (var altId in itemsToRefresh)
             {
@@ -471,11 +472,37 @@ namespace StrmAssistant.Common
             }
         }
 
-        public void QueueRefreshAlternateVersions(string itemId, MetadataRefreshOptions options, bool overwrite)
+        public void QueueRefreshAlternateVersions(BaseItem item, string mediaSourceId, MetadataRefreshOptions options)
+        {
+            if (string.IsNullOrEmpty(mediaSourceId)) return;
+
+            BaseItem targetItem = null;
+
+            if (item.GetDefaultMediaSourceId() == mediaSourceId)
+            {
+                targetItem = item;
+            }
+            else
+            {
+                var mediaSource = item.GetMediaSources(true, false, null).FirstOrDefault(s => s.Id == mediaSourceId);
+
+                if (mediaSource != null)
+                {
+                    targetItem = _libraryManager.GetItemById(mediaSource.ItemId);
+                }
+            }
+
+            if (targetItem != null)
+            {
+                QueueRefreshAlternateVersions(targetItem, options, false);
+            }
+        }
+
+        public void QueueRefreshAlternateVersions(string itemId, MetadataRefreshOptions options)
         {
             var item = _libraryManager.GetItemById(itemId);
 
-            QueueRefreshAlternateVersions(item, options, overwrite);
+            QueueRefreshAlternateVersions(item, options, true);
         }
     }
 }

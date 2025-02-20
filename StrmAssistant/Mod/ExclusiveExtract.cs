@@ -498,7 +498,7 @@ namespace StrmAssistant.Mod
         {
             var id = Traverse.Create(request).Property("Id").GetValue<string>();
 
-            Plugin.MediaInfoApi.QueueRefreshAlternateVersions(id, __result, true);
+            Plugin.MediaInfoApi.QueueRefreshAlternateVersions(id, __result);
         }
     }
 }

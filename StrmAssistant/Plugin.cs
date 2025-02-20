@@ -287,7 +287,7 @@ namespace StrmAssistant
             if (MediaInfoExtractStore.MediaInfoExtractOptions.ExclusiveExtract &&
                 IsExclusiveFeatureSelected(MediaInfoExtractOptions.ExclusiveControl.ExtractAlternative))
             {
-                MediaInfoApi.QueueRefreshAlternateVersions(e.Item, LibraryApi.MediaInfoRefreshOptions, false);
+                MediaInfoApi.QueueRefreshAlternateVersions(e.Item, e.MediaSourceId, LibraryApi.MediaInfoRefreshOptions);
             }
         }
 
