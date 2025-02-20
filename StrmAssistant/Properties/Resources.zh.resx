@@ -572,4 +572,7 @@
   <data name="AreYouSureToContinue" xml:space="preserve">
     <value>您确定要继续吗？</value>
   </data>
+  <data name="ExclusiveControl_ExtractAlternative_ExtractAlternative" xml:space="preserve">
+    <value>播放停止后提取其他版本</value>
+  </data>
 </root>

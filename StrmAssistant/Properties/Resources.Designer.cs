@@ -70,7 +70,7 @@ namespace StrmAssistant.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to .
+        ///   Looks up a localized string similar to Are you sure you wish to continue?.
         /// </summary>
         public static string AreYouSureToContinue {
             get {
@@ -139,6 +139,15 @@ namespace StrmAssistant.Properties {
         public static string ExclusiveControl_CatchAllBlock_CatchAllBlock {
             get {
                 return ResourceManager.GetString("ExclusiveControl_CatchAllBlock_CatchAllBlock", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ExtractAlternative.
+        /// </summary>
+        public static string ExclusiveControl_ExtractAlternative_ExtractAlternative {
+            get {
+                return ResourceManager.GetString("ExclusiveControl_ExtractAlternative_ExtractAlternative", resourceCulture);
             }
         }
         

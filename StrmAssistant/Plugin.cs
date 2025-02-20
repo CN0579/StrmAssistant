@@ -77,6 +77,7 @@ namespace StrmAssistant
         private readonly IProviderManager _providerManager;
         private readonly IFileSystem _fileSystem;
         private readonly ITaskManager _taskManager;
+        private readonly ISessionManager _sessionManager;
 
         public Plugin(IApplicationHost applicationHost, IApplicationPaths applicationPaths, ILogManager logManager,
             IFileSystem fileSystem, ILibraryManager libraryManager, ISessionManager sessionManager,
@@ -97,6 +98,7 @@ namespace StrmAssistant
             _userManager = userManager;
             _userDataManager = userDataManager;
             _providerManager = providerManager;
+            _sessionManager = sessionManager;
             _fileSystem = fileSystem;
             _taskManager= taskManager;
 
@@ -112,8 +114,8 @@ namespace StrmAssistant
             PatchManager.Initialize();
 
             LibraryApi = new LibraryApi(libraryManager, fileSystem, mediaMountManager, userManager);
-            MediaInfoApi = new MediaInfoApi(libraryManager, fileSystem, mediaSourceManager, itemRepository,
-                jsonSerializer, libraryMonitor);
+            MediaInfoApi = new MediaInfoApi(libraryManager, fileSystem, providerManager, mediaSourceManager,
+                itemRepository, jsonSerializer, libraryMonitor);
             ChapterApi = new ChapterApi(libraryManager, itemRepository, jsonSerializer);
             FingerprintApi = new FingerprintApi(libraryManager, fileSystem, applicationPaths, ffmpegManager,
                 mediaEncoder, mediaMountManager, jsonSerializer, serverApplicationHost);
@@ -141,6 +143,7 @@ namespace StrmAssistant
             _libraryManager.ItemUpdated += OnItemUpdated;
             _libraryManager.ItemRemoved += OnItemRemoved;
             _providerManager.RefreshCompleted += OnRefreshCompleted;
+            _sessionManager.PlaybackStopped += OnPlaybackStopped;
             _userManager.UserCreated += OnUserCreated;
             _userManager.UserDeleted += OnUserDeleted;
             _userManager.UserConfigurationUpdated += OnUserConfigurationUpdated;
@@ -267,6 +270,15 @@ namespace StrmAssistant
             {
                 Logger.Debug(ex.Message);
                 Logger.Debug(ex.StackTrace);
+            }
+        }
+
+        private void OnPlaybackStopped(object sender, PlaybackProgressEventArgs e)
+        {
+            if (MediaInfoExtractStore.MediaInfoExtractOptions.ExclusiveExtract &&
+                IsExclusiveFeatureSelected(MediaInfoExtractOptions.ExclusiveControl.ExtractAlternative))
+            {
+                MediaInfoApi.QueueRefreshAlternateVersions(e.Item, LibraryApi.MediaInfoRefreshOptions, false);
             }
         }
 

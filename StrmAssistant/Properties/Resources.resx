@@ -659,4 +659,7 @@
   <data name="AreYouSureToContinue" xml:space="preserve">
     <value>Are you sure you wish to continue?</value>
   </data>
+  <data name="ExclusiveControl_ExtractAlternative_ExtractAlternative" xml:space="preserve">
+    <value>Extract Alternative Versions on Playback Stop</value>
+  </data>
 </root>

@@ -30,7 +30,8 @@ namespace StrmAssistant.Common
         private readonly IItemRepository _itemRepository;
         private readonly IJsonSerializer _jsonSerializer;
         private readonly IFileSystem _fileSystem;
-        
+        private readonly IProviderManager _providerManager;
+
         private const string MediaInfoFileExtension = "-mediainfo.json";
 
         private static readonly PatchTracker PatchTracker =
@@ -48,13 +49,14 @@ namespace StrmAssistant.Common
             public bool? ZeroFingerprintConfidence { get; set; }
         }
 
-        public MediaInfoApi(ILibraryManager libraryManager, IFileSystem fileSystem,
+        public MediaInfoApi(ILibraryManager libraryManager, IFileSystem fileSystem, IProviderManager providerManager,
             IMediaSourceManager mediaSourceManager, IItemRepository itemRepository, IJsonSerializer jsonSerializer,
             ILibraryMonitor libraryMonitor)
         {
             _logger = Plugin.Instance.Logger;
             _libraryManager = libraryManager;
             _fileSystem = fileSystem;
+            _providerManager = providerManager;
             _mediaSourceManager = mediaSourceManager;
             _itemRepository = itemRepository;
             _jsonSerializer = jsonSerializer;
@@ -443,6 +445,37 @@ namespace StrmAssistant.Common
             }
 
             return false;
+        }
+
+        public void QueueRefreshAlternateVersions(BaseItem item, MetadataRefreshOptions options, bool overwrite)
+        {
+            if (!(item is Video video)) return;
+
+            var altIds = video.GetAlternateVersionIds();
+
+            if (!altIds.Any()) return;
+
+            var itemsToRefresh = overwrite
+                ? altIds
+                : _libraryManager.GetItemList(new InternalItemsQuery
+                {
+                    ItemIds = altIds.ToArray(),
+                    HasPath = true,
+                    HasAudioStream = false,
+                    MediaTypes = new[] { MediaType.Video }
+                }).Select(i => i.InternalId);
+
+            foreach (var altId in itemsToRefresh)
+            {
+                _providerManager.QueueRefresh(altId, options, RefreshPriority.Normal);
+            }
+        }
+
+        public void QueueRefreshAlternateVersions(string itemId, MetadataRefreshOptions options, bool overwrite)
+        {
+            var item = _libraryManager.GetItemById(itemId);
+
+            QueueRefreshAlternateVersions(item, options, overwrite);
         }
     }
 }

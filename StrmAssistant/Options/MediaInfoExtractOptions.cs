@@ -61,7 +61,9 @@ namespace StrmAssistant.Options
             [DescriptionL("ExclusiveControl_NoPersistIntegration_NoPersistIntegration", typeof(Resources))]
             NoPersistIntegration,
             [DescriptionL("ExclusiveControl_NoIntroProtect_NoIntroProtect", typeof(Resources))]
-            NoIntroProtect
+            NoIntroProtect,
+            [DescriptionL("ExclusiveControl_ExtractAlternative_ExtractAlternative", typeof(Resources))]
+            ExtractAlternative
         }
 
         [Browsable(false)]

@@ -5,6 +5,7 @@ using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Services;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -24,6 +25,7 @@ namespace StrmAssistant.Mod
             public long InternalId { get; set; }
             public MetadataRefreshOptions MetadataRefreshOptions { get; set; }
             public bool IsNewItem { get; set; }
+            public bool IsPlayback { get; set; }
             public bool IsFileChanged { get; set; }
             public bool IsExternalSubtitleChanged { get; set; }
             public bool IsPersistInScope { get; set; }
@@ -48,6 +50,7 @@ namespace StrmAssistant.Mod
 
         private static readonly Dictionary<Type, PropertyInfo> RefreshLibraryPropertyCache =
             new Dictionary<Type, PropertyInfo>();
+        private static MethodInfo _getRefreshOptions;
 
         private static readonly AsyncLocal<long> ExclusiveItem = new AsyncLocal<long>();
         private static readonly AsyncLocal<long> ProtectIntroItem = new AsyncLocal<long>();
@@ -109,7 +112,7 @@ namespace StrmAssistant.Mod
                 new[] { embyApi.GetType("Emby.Api.Library.AddMediaPath") });
             _removeMediaPath = libraryStructureService.GetMethod("Any",
                 new[] { embyApi.GetType("Emby.Api.Library.RemoveMediaPath") });
-
+            
             var embyServerImplementationsAssembly = Assembly.Load("Emby.Server.Implementations");
             var sqliteItemRepository =
                 embyServerImplementationsAssembly.GetType("Emby.Server.Implementations.Data.SqliteItemRepository");
@@ -118,6 +121,10 @@ namespace StrmAssistant.Mod
                 new[] { typeof(long), typeof(bool), typeof(List<ChapterInfo>) }, null);
             _deleteChapters =
                 sqliteItemRepository.GetMethod("DeleteChapters", BindingFlags.Instance | BindingFlags.Public);
+
+            var itemRefreshService = embyApi.GetType("Emby.Api.ItemRefreshService");
+            _getRefreshOptions =
+                itemRefreshService.GetMethod("GetRefreshOptions", BindingFlags.Instance | BindingFlags.NonPublic);
         }
 
         protected override void Prepare(bool apply)
@@ -132,6 +139,7 @@ namespace StrmAssistant.Mod
             PatchUnpatch(PatchTracker, apply, _removeMediaPath, prefix: nameof(RefreshLibraryPrefix));
             PatchUnpatch(PatchTracker, apply, _saveChapters, prefix: nameof(SaveChaptersPrefix));
             PatchUnpatch(PatchTracker, apply, _deleteChapters, prefix: nameof(DeleteChaptersPrefix));
+            PatchUnpatch(PatchTracker, apply, _getRefreshOptions, postfix: nameof(GetRefreshOptionsPostfix));
         }
 
         private void PatchFfProbeProcess()
@@ -225,6 +233,13 @@ namespace StrmAssistant.Mod
 
                     if (!CurrentRefreshContext.Value.IsNewItem)
                     {
+                        if (options.MetadataRefreshMode == MetadataRefreshMode.FullRefresh &&
+                            options.ImageRefreshMode == MetadataRefreshMode.Default &&
+                            !options.ReplaceAllMetadata && !options.ReplaceAllImages)
+                        {
+                            CurrentRefreshContext.Value.IsPlayback = true;
+                        }
+
                         if (!IsExclusiveFeatureSelected(ExclusiveControl.IgnoreFileChange) &&
                             Plugin.LibraryApi.HasFileChanged(item, options.DirectoryService))
                         {
@@ -297,7 +312,8 @@ namespace StrmAssistant.Mod
 
                 var refreshOptions = CurrentRefreshContext.Value.MetadataRefreshOptions;
 
-                if (CurrentRefreshContext.Value.IsFileChanged)
+                if (CurrentRefreshContext.Value.IsFileChanged ||
+                    IsExclusiveFeatureSelected(ExclusiveControl.ExtractAlternative))
                 {
                     return true;
                 }
@@ -329,9 +345,7 @@ namespace StrmAssistant.Mod
                 }
 
                 if (IsExclusiveFeatureSelected(ExclusiveControl.CatchAllBlock) &&
-                    !(refreshOptions.MetadataRefreshMode == MetadataRefreshMode.FullRefresh &&
-                      refreshOptions.ImageRefreshMode == MetadataRefreshMode.Default &&
-                      !refreshOptions.ReplaceAllMetadata && !refreshOptions.ReplaceAllImages))
+                    !CurrentRefreshContext.Value.IsPlayback)
                 {
                     return false;
                 }
@@ -467,6 +481,14 @@ namespace StrmAssistant.Mod
             if (ProtectIntroItem.Value != 0 && ProtectIntroItem.Value == itemId) return false;
 
             return true;
+        }
+
+        [HarmonyPostfix]
+        private static void GetRefreshOptionsPostfix(IReturnVoid request, MetadataRefreshOptions __result)
+        {
+            var id = Traverse.Create(request).Property("Id").GetValue<string>();
+
+            Plugin.MediaInfoApi.QueueRefreshAlternateVersions(id, __result, true);
         }
     }
 }
