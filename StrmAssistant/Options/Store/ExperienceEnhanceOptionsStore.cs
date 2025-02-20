@@ -154,8 +154,8 @@ namespace StrmAssistant.Options.Store
                 if (!suppress)
                 {
                     _logger.Info("MergeMultiVersion is set to {0}", options.MergeMultiVersion);
-                    _logger.Info("MergeMultiVersionPreferences is set to {0}",
-                        options.MergeMultiVersionPreferences.GetDescription());
+                    _logger.Info("MergeMoviesPreference is set to {0}", options.MergeMoviesPreference.GetDescription());
+                    _logger.Info("MergeSeriesPreference is set to {0}", options.MergeSeriesPreference.GetDescription());
                     _logger.Info("EnhanceNotificationSystem is set to {0}", options.EnhanceNotificationSystem);
                     _logger.Info("EnableDeepDelete is set to {0}", options.EnableDeepDelete);
                     _logger.Info("HidePersonNoImage is set to {0}", options.UIFunctionOptions.HidePersonNoImage);

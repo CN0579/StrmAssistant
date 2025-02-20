@@ -105,7 +105,7 @@
     <value>自动合并多版本</value>
   </data>
   <data name="GeneralOptions_MergeMultiVersion_Auto_merge_multiple_versions_if_in_the_same_folder_" xml:space="preserve">
-    <value>扫库时自动合并电影为多版本，不需符合官方严格的命名规范，默认关闭。</value>
+    <value>扫库时自动合并电影和电视节目为多版本，不需符合官方严格的命名规范，默认关闭。</value>
   </data>
   <data name="PluginOptions_ModOptions_Mod_Features" xml:space="preserve">
     <value>搜索</value>
@@ -551,10 +551,10 @@
   <data name="Operation_Success" xml:space="preserve">
     <value>操作已成功完成</value>
   </data>
-  <data name="MergeMultiVersionOption_LibraryScope_LibraryScope" xml:space="preserve">
+  <data name="MergeScopeOption_LibraryScope_LibraryScope" xml:space="preserve">
     <value>各媒体库内合并</value>
   </data>
-  <data name="MergeMultiVersionOption_GlobalScope_GlobalScope" xml:space="preserve">
+  <data name="MergeScopeOption_GlobalScope_GlobalScope" xml:space="preserve">
     <value>跨媒体库合并</value>
   </data>
   <data name="MergeMovieTask_Description_Merge_movies_per_library_or_across_libraries_per_preference" xml:space="preserve">
@@ -574,5 +574,11 @@
   </data>
   <data name="ExclusiveControl_ExtractAlternative_ExtractAlternative" xml:space="preserve">
     <value>播放停止后提取其他版本</value>
+  </data>
+  <data name="ExperienceEnhanceOptions_MergeMoviePreferences_Movie_Merge_Preference" xml:space="preserve">
+    <value>电影合并偏好</value>
+  </data>
+  <data name="ExperienceEnhanceOptions_MergeSeriesPreferences_Series_Merge_Preference" xml:space="preserve">
+    <value>电视节目合并偏好</value>
   </data>
 </root>

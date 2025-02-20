@@ -30,9 +30,11 @@ namespace StrmAssistant.Common
         private readonly ILogger _logger;
         private readonly ILibraryManager _libraryManager;
         private readonly IFileSystem _fileSystem;
-        private readonly IUserManager _userManager;
         private readonly IMediaMountManager _mediaMountManager;
+        private readonly IProviderManager _providerManager;
+        private readonly IUserManager _userManager;
 
+        public static MetadataRefreshOptions MinimumRefreshOptions;
         public static MetadataRefreshOptions MediaInfoRefreshOptions;
         public static MetadataRefreshOptions ImageCaptureRefreshOptions;
         public static MetadataRefreshOptions FullRefreshOptions;
@@ -90,16 +92,28 @@ namespace StrmAssistant.Common
         public static string[] AdminOrderedViews = Array.Empty<string>();
 
         public LibraryApi(ILibraryManager libraryManager, IFileSystem fileSystem, IMediaMountManager mediaMountManager,
-            IUserManager userManager)
+            IProviderManager providerManager, IUserManager userManager)
         {
             _logger = Plugin.Instance.Logger;
             _libraryManager = libraryManager;
             _fileSystem = fileSystem;
-            _userManager = userManager;
             _mediaMountManager = mediaMountManager;
+            _providerManager = providerManager;
+            _userManager = userManager;
 
             UpdateLibraryPathsInScope(Plugin.Instance.MediaInfoExtractStore.GetOptions().LibraryScope);
             FetchUsers();
+
+            MinimumRefreshOptions = new MetadataRefreshOptions(_fileSystem)
+            {
+                EnableRemoteContentProbe = false,
+                ReplaceAllMetadata = false,
+                EnableThumbnailImageExtraction = false,
+                EnableSubtitleDownloading = false,
+                ImageRefreshMode = MetadataRefreshMode.ValidationOnly,
+                MetadataRefreshMode = MetadataRefreshMode.ValidationOnly,
+                ReplaceAllImages = false
+            };
 
             MediaInfoRefreshOptions = new MetadataRefreshOptions(_fileSystem)
             {
@@ -907,6 +921,74 @@ namespace StrmAssistant.Common
                 }
 
                 folderPaths.Remove(path);
+            }
+        }
+
+        public BaseItem[] GetAllCollectionFolders(Series series)
+        {
+            var allSeries = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                EnableTotalRecordCount = false,
+                Recursive = false,
+                ExcludeItemIds = new[] { series.InternalId },
+                IncludeItemTypes = new[] { nameof(Series) },
+                AnyProviderIdEquals = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>(MetadataProviders.Tmdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Tmdb)),
+                    new KeyValuePair<string, string>(MetadataProviders.Imdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Imdb)),
+                    new KeyValuePair<string, string>(MetadataProviders.Tvdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Tvdb))
+                }
+            }).Concat(new[] { series }).ToList();
+
+            var collectionFolders = new HashSet<BaseItem>();
+
+            foreach (var item in allSeries)
+            {
+                var options = _libraryManager.GetLibraryOptions(item);
+
+                if (options.EnableAutomaticSeriesGrouping)
+                {
+                    foreach (var library in _libraryManager.GetCollectionFolders(item))
+                    {
+                        collectionFolders.Add(library);
+                    }
+                }
+            }
+
+            return collectionFolders.OrderBy(c => c.InternalId).ToArray();
+        }
+
+        public void UpdateSeriesAlternativeVersions(Series series)
+        {
+            var altItems = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                EnableTotalRecordCount = false,
+                Recursive = false,
+                ExcludeParentIds = new[] { series.ParentId },
+                PresentationUniqueKeyNotEquals = series.PresentationUniqueKey,
+                IncludeItemTypes = new[] { nameof(Series) },
+                AnyProviderIdEquals = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>(MetadataProviders.Tmdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Tmdb)),
+                    new KeyValuePair<string, string>(MetadataProviders.Imdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Imdb)),
+                    new KeyValuePair<string, string>(MetadataProviders.Tvdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Tvdb))
+                }
+            }).ToList();
+
+            foreach (var item in altItems)
+            {
+                item.PresentationUniqueKey = item.CreatePresentationUniqueKey(null, null);
+
+                _libraryManager.UpdateItems(new List<BaseItem> { item }, null,
+                    ItemUpdateType.MetadataImport, false, false, null, CancellationToken.None);
+
+                _providerManager.QueueRefresh(item.InternalId, MinimumRefreshOptions, RefreshPriority.High);
             }
         }
     }

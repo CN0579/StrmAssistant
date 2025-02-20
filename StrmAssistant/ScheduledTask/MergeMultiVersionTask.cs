@@ -46,7 +46,7 @@ namespace StrmAssistant.ScheduledTask
             _logger.Info("MergeMultiVersion - Scheduled Task Execute");
 
             var globalScope = Plugin.Instance.ExperienceEnhanceStore.GetOptions()
-                .MergeMultiVersionPreferences == MergeMultiVersionOption.GlobalScope;
+                .MergeMoviesPreference == MergeScopeOption.GlobalScope;
             _logger.Info("MergeMultiVersion - Across Libraries: " + globalScope);
 
             long[][] libraryGroups;

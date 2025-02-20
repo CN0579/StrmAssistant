@@ -20,18 +20,22 @@ namespace StrmAssistant.Options
         [Required]
         public bool MergeMultiVersion { get; set; } = false;
 
-        public enum MergeMultiVersionOption
+        public enum MergeScopeOption
         {
-            [DescriptionL("MergeMultiVersionOption_LibraryScope_LibraryScope", typeof(Resources))]
+            [DescriptionL("MergeScopeOption_LibraryScope_LibraryScope", typeof(Resources))]
             LibraryScope,
-            [DescriptionL("MergeMultiVersionOption_GlobalScope_GlobalScope", typeof(Resources))]
+            [DescriptionL("MergeScopeOption_GlobalScope_GlobalScope", typeof(Resources))]
             GlobalScope
         }
         
-        [DisplayName("")]
+        [DisplayNameL("ExperienceEnhanceOptions_MergeMoviePreferences_Movie_Merge_Preference", typeof(Resources))]
         [VisibleCondition(nameof(MergeMultiVersion), SimpleCondition.IsTrue)]
-        public MergeMultiVersionOption MergeMultiVersionPreferences { get; set; } =
-            MergeMultiVersionOption.LibraryScope;
+        public MergeScopeOption MergeMoviesPreference { get; set; } = MergeScopeOption.LibraryScope;
+        
+        [DisplayNameL("ExperienceEnhanceOptions_MergeSeriesPreferences_Series_Merge_Preference", typeof(Resources))]
+        [VisibleCondition(nameof(MergeMultiVersion), SimpleCondition.IsTrue)]
+        [EnabledCondition(nameof(IsModSupported), SimpleCondition.IsTrue)]
+        public MergeScopeOption MergeSeriesPreference { get; set; } = MergeScopeOption.LibraryScope;
 
         [VisibleCondition(nameof(MergeMultiVersion), SimpleCondition.IsTrue)]
         public ButtonItem SplitMoviesButton =>

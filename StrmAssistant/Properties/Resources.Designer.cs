@@ -143,7 +143,7 @@ namespace StrmAssistant.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ExtractAlternative.
+        ///   Looks up a localized string similar to Extract Alternative Versions on Playback Stop.
         /// </summary>
         public static string ExclusiveControl_ExtractAlternative_ExtractAlternative {
             get {
@@ -244,6 +244,24 @@ namespace StrmAssistant.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Movie Merge Preference.
+        /// </summary>
+        public static string ExperienceEnhanceOptions_MergeMoviePreferences_Movie_Merge_Preference {
+            get {
+                return ResourceManager.GetString("ExperienceEnhanceOptions_MergeMoviePreferences_Movie_Merge_Preference", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to TV Series Merge Preference.
+        /// </summary>
+        public static string ExperienceEnhanceOptions_MergeSeriesPreferences_Series_Merge_Preference {
+            get {
+                return ResourceManager.GetString("ExperienceEnhanceOptions_MergeSeriesPreferences_Series_Merge_Preference", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Split multi-version movies in all libraries.
         /// </summary>
         public static string ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries {
@@ -336,7 +354,7 @@ namespace StrmAssistant.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Auto merge movies to multiple versions while library scan, bypass naming convention. Default is OFF..
+        ///   Looks up a localized string similar to While library scan, auto merge movies to multi versions, bypass naming convention, support tvshows across libraries. Default is OFF..
         /// </summary>
         public static string GeneralOptions_MergeMultiVersion_Auto_merge_multiple_versions_if_in_the_same_folder_ {
             get {
@@ -900,18 +918,18 @@ namespace StrmAssistant.Properties {
         /// <summary>
         ///   Looks up a localized string similar to Global Scope.
         /// </summary>
-        public static string MergeMultiVersionOption_GlobalScope_GlobalScope {
+        public static string MergeScopeOption_GlobalScope_GlobalScope {
             get {
-                return ResourceManager.GetString("MergeMultiVersionOption_GlobalScope_GlobalScope", resourceCulture);
+                return ResourceManager.GetString("MergeScopeOption_GlobalScope_GlobalScope", resourceCulture);
             }
         }
         
         /// <summary>
         ///   Looks up a localized string similar to Library Scope.
         /// </summary>
-        public static string MergeMultiVersionOption_LibraryScope_LibraryScope {
+        public static string MergeScopeOption_LibraryScope_LibraryScope {
             get {
-                return ResourceManager.GetString("MergeMultiVersionOption_LibraryScope_LibraryScope", resourceCulture);
+                return ResourceManager.GetString("MergeScopeOption_LibraryScope_LibraryScope", resourceCulture);
             }
         }
         

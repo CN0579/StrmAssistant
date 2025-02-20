@@ -192,7 +192,7 @@
     <value>Auto Merge Multi-version</value>
   </data>
   <data name="GeneralOptions_MergeMultiVersion_Auto_merge_multiple_versions_if_in_the_same_folder_" xml:space="preserve">
-    <value>Auto merge movies to multiple versions while library scan, bypass naming convention. Default is OFF.</value>
+    <value>While library scan, auto merge movies and series to multi versions, bypass naming convention. Default is OFF.</value>
   </data>
   <data name="PluginOptions_ModOptions_Mod_Features" xml:space="preserve">
     <value>Search</value>
@@ -638,10 +638,10 @@
   <data name="Operation_Success" xml:space="preserve">
     <value>Operation completed successfully</value>
   </data>
-  <data name="MergeMultiVersionOption_LibraryScope_LibraryScope" xml:space="preserve">
+  <data name="MergeScopeOption_LibraryScope_LibraryScope" xml:space="preserve">
     <value>Library Scope</value>
   </data>
-  <data name="MergeMultiVersionOption_GlobalScope_GlobalScope" xml:space="preserve">
+  <data name="MergeScopeOption_GlobalScope_GlobalScope" xml:space="preserve">
     <value>Global Scope</value>
   </data>
   <data name="MergeMovieTask_Description_Merge_movies_per_library_or_across_libraries_per_preference" xml:space="preserve">
@@ -661,5 +661,11 @@
   </data>
   <data name="ExclusiveControl_ExtractAlternative_ExtractAlternative" xml:space="preserve">
     <value>Extract Alternative Versions on Playback Stop</value>
+  </data>
+  <data name="ExperienceEnhanceOptions_MergeMoviePreferences_Movie_Merge_Preference" xml:space="preserve">
+    <value>Movie Merge Preference</value>
+  </data>
+  <data name="ExperienceEnhanceOptions_MergeSeriesPreferences_Series_Merge_Preference" xml:space="preserve">
+    <value>TV Series Merge Preference</value>
   </data>
 </root>

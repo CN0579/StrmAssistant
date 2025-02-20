@@ -113,7 +113,7 @@ namespace StrmAssistant
 
             PatchManager.Initialize();
 
-            LibraryApi = new LibraryApi(libraryManager, fileSystem, mediaMountManager, userManager);
+            LibraryApi = new LibraryApi(libraryManager, fileSystem, mediaMountManager, providerManager, userManager);
             MediaInfoApi = new MediaInfoApi(libraryManager, fileSystem, providerManager, mediaSourceManager,
                 itemRepository, jsonSerializer, libraryMonitor);
             ChapterApi = new ChapterApi(libraryManager, itemRepository, jsonSerializer);
@@ -161,8 +161,8 @@ namespace StrmAssistant
                 if (library != null && (library.CollectionType == CollectionType.Movies.ToString() ||
                                         library.CollectionType is null))
                 {
-                    if (ExperienceEnhanceStore.GetOptions().MergeMultiVersionPreferences ==
-                        MergeMultiVersionOption.LibraryScope)
+                    if (ExperienceEnhanceStore.GetOptions().MergeMoviesPreference ==
+                        MergeScopeOption.LibraryScope)
                     {
                         MergeMultiVersionTask.PerLibrary.Value = library;
                     }
@@ -259,6 +259,15 @@ namespace StrmAssistant
                             }
                         }
                     }
+                }
+
+                if (ExperienceEnhanceStore.GetOptions().IsModSupported &&
+                    ExperienceEnhanceStore.GetOptions().MergeMultiVersion &&
+                    ExperienceEnhanceStore.GetOptions().MergeSeriesPreference ==
+                    MergeScopeOption.GlobalScope && e.Item is Series series && series.ProviderIds.Any() &&
+                    _libraryManager.GetLibraryOptions(series).EnableAutomaticSeriesGrouping)
+                {
+                    LibraryApi.UpdateSeriesAlternativeVersions(series);
                 }
 
                 if (e.Item is Movie || e.Item is Series || e.Item is Episode)
