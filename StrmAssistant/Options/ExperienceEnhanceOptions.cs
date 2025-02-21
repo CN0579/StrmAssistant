@@ -1,4 +1,5 @@
 using Emby.Web.GenericEdit;
+using Emby.Web.GenericEdit.Common;
 using Emby.Web.GenericEdit.Elements;
 using Emby.Web.GenericEdit.Elements.List;
 using MediaBrowser.Model.Attributes;
@@ -33,16 +34,19 @@ namespace StrmAssistant.Options
             MergeMultiVersionOption.LibraryScope;
 
         [VisibleCondition(nameof(MergeMultiVersion), SimpleCondition.IsTrue)]
-        public ButtonItem SplitMovieButton =>
+        public ButtonItem SplitMoviesButton =>
             new ButtonItem(
                 Resources.ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries)
             {
-                Icon = IconNames.clear_all, Data1 = "SplitMovies"
+                Icon = IconNames.clear_all, Data1 = "SplitMovies", ConfirmationPrompt = Resources.AreYouSureToContinue
             };
 
         [VisibleCondition(nameof(MergeMultiVersion), SimpleCondition.IsTrue)]
-        public GenericItemList SplitMovieProgress { get; set; } = new GenericItemList();
-        
+        public GenericItemList SplitMoviesProgress { get; set; } = new GenericItemList();
+
+        [VisibleCondition(nameof(MergeMultiVersion), SimpleCondition.IsTrue)]
+        public SpacerItem SplitMovieProgressSeparator { get; set; } = new SpacerItem(SpacerSize.Small);
+
         [DisplayNameL("ExperienceEnhanceOptions_EnhanceNotification_Enhance_Notification", typeof(Resources))]
         [DescriptionL("ExperienceEnhanceOptions_EnhanceNotification_Show_episode_details_in_series_notification__Default_is_OFF_", typeof(Resources))]
         [Required]

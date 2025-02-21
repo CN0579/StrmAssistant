@@ -48,8 +48,8 @@ namespace StrmAssistant.Options.View
 
         private async Task HandleSplitMovieButton()
         {
-            ExperienceEnhanceOptions.SplitMovieButton.IsEnabled = false;
-            ExperienceEnhanceOptions.SplitMovieProgress.Clear();
+            ExperienceEnhanceOptions.SplitMoviesButton.IsEnabled = false;
+            ExperienceEnhanceOptions.SplitMoviesProgress.Clear();
             var progressItem = new GenericListItem
             {
                 Icon = IconNames.work_outline,
@@ -57,7 +57,7 @@ namespace StrmAssistant.Options.View
                 Status = ItemStatus.InProgress,
                 HasPercentage = true
             };
-            ExperienceEnhanceOptions.SplitMovieProgress.Add(progressItem);
+            ExperienceEnhanceOptions.SplitMoviesProgress.Add(progressItem);
             RaiseUIViewInfoChanged();
             await Task.Delay(100.ms());
 
@@ -81,14 +81,14 @@ namespace StrmAssistant.Options.View
                 await Task.Delay(100.ms());
             }
 
-            ExperienceEnhanceOptions.SplitMovieButton.IsEnabled = true;
+            ExperienceEnhanceOptions.SplitMoviesButton.IsEnabled = true;
             progressItem.HasPercentage = false;
             progressItem.SecondaryText = Resources.Operation_Success;
             progressItem.Icon = IconNames.info;
             progressItem.Status = ItemStatus.Succeeded;
             RaiseUIViewInfoChanged();
             await Task.Delay(2000);
-            ExperienceEnhanceOptions.SplitMovieProgress.Clear();
+            ExperienceEnhanceOptions.SplitMoviesProgress.Clear();
             RaiseUIViewInfoChanged();
         }
     }

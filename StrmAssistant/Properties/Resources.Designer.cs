@@ -70,6 +70,15 @@ namespace StrmAssistant.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to .
+        /// </summary>
+        public static string AreYouSureToContinue {
+            get {
+                return ResourceManager.GetString("AreYouSureToContinue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Built-in Intro Detection.
         /// </summary>
         public static string CatchupTask_Fingerprint_Fingerprint {
@@ -188,7 +197,7 @@ namespace StrmAssistant.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Attempt to cascade delete the underlying file of strm or symlink. Default is OFF..
+        ///   Looks up a localized string similar to Attempt to cascade delete the target file of strm or symlink, and the related files and emptry directory. Default is OFF..
         /// </summary>
         public static string ExperienceEnhanceOptions_EnableDeepDelete_Attempt_to_cascade_delete_the_underlying_file_of_strm_or_symlink__Default_is_OFF_ {
             get {

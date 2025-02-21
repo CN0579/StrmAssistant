@@ -569,4 +569,7 @@
   <data name="ExperienceEnhanceOptions_EnableDeepDelete_Attempt_to_cascade_delete_the_underlying_file_of_strm_or_symlink__Default_is_OFF_" xml:space="preserve">
     <value>刪除媒體時，嘗試級聯刪除 STRM 或軟連結的目標檔案以及相關檔案和空目錄，預設為關閉。</value>
   </data>
+  <data name="AreYouSureToContinue" xml:space="preserve">
+    <value>確定要繼續執行？</value>
+  </data>
 </root>
