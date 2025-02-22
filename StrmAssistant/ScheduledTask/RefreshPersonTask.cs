@@ -205,7 +205,7 @@ namespace StrmAssistant.ScheduledTask
                                     }
 
                                     _libraryManager.UpdateItems(new List<BaseItem> { taskItem }, null,
-                                        ItemUpdateType.MetadataEdit, true, false, null, CancellationToken.None);
+                                        ItemUpdateType.MetadataDownload, true, false, null, CancellationToken.None);
                                 }
                             }
 

@@ -2,12 +2,14 @@ using HarmonyLib;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Entities.TV;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -25,17 +27,19 @@ namespace StrmAssistant.Mod
             public long InternalId { get; set; }
             public MetadataRefreshOptions MetadataRefreshOptions { get; set; }
             public bool IsNewItem { get; set; }
+            public bool IsScanning { get; set; }
             public bool IsPlayback { get; set; }
             public bool IsFileChanged { get; set; }
             public bool IsExternalSubtitleChanged { get; set; }
             public bool IsPersistInScope { get; set; }
             public bool MediaInfoUpdated { get; set; }
+            public bool HasMetadataFetchers { get; set; }
         }
 
         private static MethodInfo _canRefreshMetadata;
         private static MethodInfo _canRefreshImage;
+        private static MethodInfo _isSaverEnabledForItem;
         private static MethodInfo _afterMetadataRefresh;
-
         private static MethodInfo _runFfProcess;
         private static PropertyInfo _standardOutput;
         private static PropertyInfo _standardError;
@@ -73,20 +77,10 @@ namespace StrmAssistant.Mod
         {
             var embyProviders = Assembly.Load("Emby.Providers");
             var providerManager = embyProviders.GetType("Emby.Providers.Manager.ProviderManager");
-            _canRefreshMetadata = providerManager.GetMethod("CanRefresh",
-                BindingFlags.Static | BindingFlags.NonPublic, null,
-                new Type[]
-                {
-                    typeof(IMetadataProvider), typeof(BaseItem), typeof(LibraryOptions), typeof(bool),
-                    typeof(bool), typeof(bool)
-                }, null);
-            _canRefreshImage = providerManager.GetMethod("CanRefresh",
-                BindingFlags.Instance | BindingFlags.NonPublic, null,
-                new Type[]
-                {
-                    typeof(IImageProvider), typeof(BaseItem), typeof(LibraryOptions),
-                    typeof(ImageRefreshOptions), typeof(bool), typeof(bool)
-                }, null);
+            _canRefreshMetadata = providerManager.GetMethod("CanRefresh", BindingFlags.Static | BindingFlags.NonPublic);
+            _canRefreshImage = providerManager.GetMethod("CanRefresh", BindingFlags.Instance | BindingFlags.NonPublic);
+            _isSaverEnabledForItem =
+                providerManager.GetMethod("IsSaverEnabledForItem", BindingFlags.Instance | BindingFlags.NonPublic);
             _afterMetadataRefresh =
                 typeof(BaseItem).GetMethod("AfterMetadataRefresh", BindingFlags.Instance | BindingFlags.Public);
 
@@ -130,6 +124,7 @@ namespace StrmAssistant.Mod
             PatchUnpatch(PatchTracker, apply, _canRefreshImage, prefix: nameof(CanRefreshImagePrefix));
             PatchUnpatch(PatchTracker, apply, _canRefreshMetadata, prefix: nameof(CanRefreshMetadataPrefix),
                 postfix: nameof(CanRefreshMetadataPostfix));
+            PatchUnpatch(PatchTracker, apply, _isSaverEnabledForItem, prefix: nameof(IsSaverEnabledForItemPrefix));
             PatchUnpatch(PatchTracker, apply, _afterMetadataRefresh, prefix: nameof(AfterMetadataRefreshPrefix));
             PatchUnpatch(PatchTracker, apply, _addVirtualFolder, prefix: nameof(RefreshLibraryPrefix));
             PatchUnpatch(PatchTracker, apply, _removeVirtualFolder, prefix: nameof(RefreshLibraryPrefix));
@@ -226,7 +221,11 @@ namespace StrmAssistant.Mod
                     {
                         InternalId = item.InternalId,
                         MetadataRefreshOptions = options,
-                        IsNewItem = item.DateLastRefreshed == DateTimeOffset.MinValue
+                        IsNewItem = item.DateLastRefreshed == DateTimeOffset.MinValue,
+                        IsScanning = options.MetadataRefreshMode <= MetadataRefreshMode.Default &&
+                                     options.ImageRefreshMode <= MetadataRefreshMode.Default,
+                        HasMetadataFetchers = libraryOptions.TypeOptions.Any(t =>
+                            t.Type == item.GetType().Name && t.MetadataFetchers.Any())
                     };
 
                     if (!CurrentRefreshContext.Value.IsNewItem)
@@ -238,8 +237,7 @@ namespace StrmAssistant.Mod
                             CurrentRefreshContext.Value.IsPlayback = true;
                         }
 
-                        if (!IsExclusiveFeatureSelected(ExclusiveControl.IgnoreFileChange) &&
-                            Plugin.LibraryApi.HasFileChanged(item, options.DirectoryService))
+                        if (Plugin.LibraryApi.HasFileChanged(item, options.DirectoryService))
                         {
                             CurrentRefreshContext.Value.IsFileChanged = true;
                         }
@@ -250,9 +248,9 @@ namespace StrmAssistant.Mod
                             CurrentRefreshContext.Value.IsExternalSubtitleChanged = true;
                         }
 
-                        if (CurrentRefreshContext.Value.IsFileChanged &&
+                        if (!IsExclusiveFeatureSelected(ExclusiveControl.IgnoreFileChange) &&
                             IsExclusiveFeatureSelected(ExclusiveControl.ExtractOnFileChange) &&
-                            Plugin.LibraryApi.HasMediaInfo(item) ||
+                            CurrentRefreshContext.Value.IsFileChanged && Plugin.LibraryApi.HasMediaInfo(item) ||
                             IsExclusiveFeatureSelected(ExclusiveControl.CatchAllAllow))
                         {
                             options.EnableRemoteContentProbe = true;
@@ -310,14 +308,14 @@ namespace StrmAssistant.Mod
 
                 var refreshOptions = CurrentRefreshContext.Value.MetadataRefreshOptions;
 
-                if (CurrentRefreshContext.Value.IsFileChanged ||
+                if (!IsExclusiveFeatureSelected(ExclusiveControl.IgnoreFileChange) &&
+                    CurrentRefreshContext.Value.IsFileChanged ||
                     IsExclusiveFeatureSelected(ExclusiveControl.ExtractAlternative))
                 {
                     return true;
                 }
 
-                if (refreshOptions.MetadataRefreshMode <= MetadataRefreshMode.Default &&
-                    refreshOptions.ImageRefreshMode <= MetadataRefreshMode.Default ||
+                if (CurrentRefreshContext.Value.IsScanning ||
                     !IsExclusiveFeatureSelected(ExclusiveControl.CatchAllAllow) && refreshOptions.SearchResult != null)
                 {
                     __result = false;
@@ -366,21 +364,11 @@ namespace StrmAssistant.Mod
                                    (item is Video || item is Audio);
             CurrentRefreshContext.Value.IsPersistInScope = isPersistInScope;
 
-            if (!__result)
-            {
-                var refreshOptions = CurrentRefreshContext.Value.MetadataRefreshOptions;
-                refreshOptions.ForceSave = true;
-
-                if (CurrentRefreshContext.Value.IsExternalSubtitleChanged)
-                {
-                    _ = Plugin.SubtitleApi.UpdateExternalSubtitles(item, CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
-            }
-            else
+            if (__result)
             {
                 if (!IsExclusiveFeatureSelected(ExclusiveControl.NoIntroProtect) &&
-                    !CurrentRefreshContext.Value.IsFileChanged && item is Episode &&
+                    (IsExclusiveFeatureSelected(ExclusiveControl.IgnoreFileChange) ||
+                     !CurrentRefreshContext.Value.IsFileChanged) && item is Episode &&
                     Plugin.ChapterApi.HasIntro(item))
                 {
                     ProtectIntroItem.Value = item.InternalId;
@@ -392,50 +380,87 @@ namespace StrmAssistant.Mod
                     CurrentRefreshContext.Value.MediaInfoUpdated = true;
                 }
             }
+            else if (CurrentRefreshContext.Value.IsExternalSubtitleChanged)
+            {
+                _ = Plugin.SubtitleApi.UpdateExternalSubtitles(item, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        [HarmonyPrefix]
+        private static void IsSaverEnabledForItemPrefix(IMetadataSaver saver, BaseItem item,
+            LibraryOptions libraryOptions, ref ItemUpdateType updateType, bool includeDisabled, bool log,
+            ref bool __result)
+        {
+            if ((updateType & ItemUpdateType.MetadataDownload) == 0) return;
+
+            if (ExclusiveItem.Value != 0 && ExclusiveItem.Value == item.InternalId)
+            {
+                updateType &= ~ItemUpdateType.MetadataDownload;
+            }
+
+            if (CurrentRefreshContext.Value != null && CurrentRefreshContext.Value.InternalId == item.InternalId)
+            {
+                if (!CurrentRefreshContext.Value.IsNewItem && CurrentRefreshContext.Value.IsScanning)
+                {
+                    updateType &= ~ItemUpdateType.MetadataDownload;
+                }
+                else if (!CurrentRefreshContext.Value.HasMetadataFetchers)
+                {
+                    updateType &= ~ItemUpdateType.MetadataDownload;
+                }
+            }
         }
 
         [HarmonyPrefix]
         private static bool AfterMetadataRefreshPrefix(BaseItem __instance)
         {
-            if (CurrentRefreshContext.Value != null &&
-                CurrentRefreshContext.Value.InternalId == __instance.InternalId &&
-                CurrentRefreshContext.Value.IsPersistInScope)
+            if (CurrentRefreshContext.Value != null && CurrentRefreshContext.Value.InternalId == __instance.InternalId)
             {
                 var refreshOptions = CurrentRefreshContext.Value.MetadataRefreshOptions;
                 var directoryService = refreshOptions.DirectoryService;
 
-                if (CurrentRefreshContext.Value.MediaInfoUpdated)
+                if (CurrentRefreshContext.Value.IsFileChanged)
                 {
-                    if (__instance.IsShortcut && !refreshOptions.EnableRemoteContentProbe)
+                    Plugin.LibraryApi.UpdateDateModifiedLastSaved(__instance, directoryService);
+                }
+
+                if (CurrentRefreshContext.Value.IsPersistInScope)
+                {
+                    
+                    if (CurrentRefreshContext.Value.MediaInfoUpdated)
                     {
-                        if (CurrentRefreshContext.Value.IsFileChanged)
+                        if (__instance.IsShortcut && !refreshOptions.EnableRemoteContentProbe)
                         {
-                            Plugin.MediaInfoApi.DeleteMediaInfoJson(__instance, directoryService,
-                                "Exclusive Delete on Change");
+                            if (!CurrentRefreshContext.Value.IsFileChanged)
+                            {
+                                _ = Plugin.MediaInfoApi.DeserializeMediaInfo(__instance, directoryService,
+                                    "Exclusive Restore", CancellationToken.None);
+                            }
+                            else if (!IsExclusiveFeatureSelected(ExclusiveControl.IgnoreFileChange))
+                            {
+                                Plugin.MediaInfoApi.DeleteMediaInfoJson(__instance, directoryService,
+                                    "Exclusive Delete on Change");
+                            }
                         }
                         else
                         {
-                            _ = Plugin.MediaInfoApi.DeserializeMediaInfo(__instance, directoryService,
-                                "Exclusive Restore", CancellationToken.None);
+                            _ = Plugin.MediaInfoApi.SerializeMediaInfo(__instance, directoryService, true,
+                                "Exclusive Overwrite", CancellationToken.None);
                         }
                     }
-                    else
+                    else if (!CurrentRefreshContext.Value.IsNewItem)
                     {
-                        _ = Plugin.MediaInfoApi.SerializeMediaInfo(__instance, directoryService, true,
-                            "Exclusive Overwrite", CancellationToken.None);
-                    }
-                }
-                else if (!CurrentRefreshContext.Value.IsNewItem)
-                {
-                    if (!Plugin.LibraryApi.HasMediaInfo(__instance))
-                    {
-                        _ = Plugin.MediaInfoApi.DeserializeMediaInfo(__instance, directoryService, "Exclusive Restore",
-                            CancellationToken.None);
-                    }
-                    else
-                    {
-                        _ = Plugin.MediaInfoApi.SerializeMediaInfo(__instance, directoryService, false,
-                            "Exclusive Non-existent", CancellationToken.None);
+                        if (!Plugin.LibraryApi.HasMediaInfo(__instance))
+                        {
+                            _ = Plugin.MediaInfoApi.DeserializeMediaInfo(__instance, directoryService, "Exclusive Restore",
+                                CancellationToken.None);
+                        }
+                        else
+                        {
+                            _ = Plugin.MediaInfoApi.SerializeMediaInfo(__instance, directoryService, false,
+                                "Exclusive Non-existent", CancellationToken.None);
+                        }
                     }
                 }
             }

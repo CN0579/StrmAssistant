@@ -84,13 +84,8 @@ namespace StrmAssistant.Mod
 
                 var embyProviders = Assembly.Load("Emby.Providers");
                 var providerManager = embyProviders.GetType("Emby.Providers.Manager.ProviderManager");
-                _canRefreshMetadata = providerManager.GetMethod("CanRefresh",
-                    BindingFlags.Static | BindingFlags.NonPublic, null,
-                    new Type[]
-                    {
-                        typeof(IMetadataProvider), typeof(BaseItem), typeof(LibraryOptions), typeof(bool),
-                        typeof(bool), typeof(bool)
-                    }, null);
+                _canRefreshMetadata =
+                    providerManager.GetMethod("CanRefresh", BindingFlags.Static | BindingFlags.NonPublic);
             }
             else
             {
@@ -114,11 +109,13 @@ namespace StrmAssistant.Mod
         }
 
         [HarmonyPrefix]
-        private static bool CanRefreshMetadataPrefix(IMetadataProvider provider, BaseItem item,
+        private static void CanRefreshMetadataPrefix(IMetadataProvider provider, BaseItem item,
             LibraryOptions libraryOptions, bool includeDisabled, bool forceEnableInternetMetadata,
-            bool ignoreMetadataLock, ref bool __result)
+            bool ignoreMetadataLock)
         {
-            if (item.Parent is null && item.ExtraType is null) return true;
+            if (CurrentSeries.Value != null) return;
+
+            if (item.Parent is null && item.ExtraType is null) return;
 
             if (provider is IRemoteMetadataProvider && provider.Name == "TheMovieDb" &&
                 Plugin.Instance.MetadataEnhanceStore.GetOptions().LocalEpisodeGroup)
@@ -138,8 +135,6 @@ namespace StrmAssistant.Mod
                     CurrentSeries.Value = series;
                 }
             }
-
-            return true;
         }
 
         [HarmonyPrefix]

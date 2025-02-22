@@ -607,6 +607,20 @@ namespace StrmAssistant.Common
             return false;
         }
 
+        public void UpdateDateModifiedLastSaved(BaseItem item, IDirectoryService directoryService)
+        {
+            if (item.IsFileProtocol)
+            {
+                var file = directoryService.GetFile(item.Path);
+                if (file != null && file.LastWriteTimeUtc.ToUnixTimeSeconds() > 0L)
+                {
+                    item.DateModified = file.LastWriteTimeUtc;
+                    _libraryManager.UpdateItems(new List<BaseItem> { item }, null,
+                        ItemUpdateType.None, true, false, null, CancellationToken.None);
+                }
+            }
+        }
+
         public async Task<bool?> OrchestrateMediaInfoProcessAsync(BaseItem taskItem, IDirectoryService directoryService,
             string source, CancellationToken cancellationToken)
         {
