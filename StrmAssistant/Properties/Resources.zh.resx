@@ -561,7 +561,7 @@
     <value>按偏好库内或跨库合并电影和电视节目，扫库后自动运行</value>
   </data>
   <data name="ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries" xml:space="preserve">
-    <value>在所有库中拆分多版本电影</value>
+    <value>在所有库中拆分多版本电影（电视节目请扫库）</value>
   </data>
   <data name="ExperienceEnhanceOptions_EnableDeepDelete_Enable_Deep_Delete" xml:space="preserve">
     <value>启用深度删除</value>

@@ -648,7 +648,7 @@
     <value>Merge movies and series per library or across libraries, triggered post library scan</value>
   </data>
   <data name="ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries" xml:space="preserve">
-    <value>Split multi-version movies in all libraries</value>
+    <value>Split multi-version movies in all libraries (scan library for TV Series split)</value>
   </data>
   <data name="ExperienceEnhanceOptions_EnableDeepDelete_Enable_Deep_Delete" xml:space="preserve">
     <value>Enable Deep Delete</value>

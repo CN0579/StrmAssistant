@@ -59,12 +59,12 @@ namespace StrmAssistant.Options.View
             };
             ExperienceEnhanceOptions.SplitMoviesProgress.Add(progressItem);
             RaiseUIViewInfoChanged();
-            await Task.Delay(100.ms());
+            await Task.Delay(10.ms());
 
             var movies = Plugin.LibraryApi.FetchSplitMovieItems();
             progressItem.PercentComplete = 20;
             RaiseUIViewInfoChanged();
-            await Task.Delay(100.ms());
+            await Task.Delay(10.ms());
 
             var total = movies.Count;
             var current = 0;
@@ -78,7 +78,7 @@ namespace StrmAssistant.Options.View
                 progressItem.PercentComplete = adjustedProgress;
                 Plugin.Instance.Logger.Info("MergeMovie - Split group " + current + "/" + total + " - " + item.Path);
                 RaiseUIViewInfoChanged();
-                await Task.Delay(100.ms());
+                await Task.Delay(10.ms());
             }
 
             ExperienceEnhanceOptions.SplitMoviesButton.IsEnabled = true;

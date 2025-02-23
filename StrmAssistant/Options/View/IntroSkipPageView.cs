@@ -63,12 +63,12 @@ namespace StrmAssistant.Options.View
             };
             IntroSkipOptions.ClearIntroProgress.Add(progressItem);
             RaiseUIViewInfoChanged();
-            await Task.Delay(100.ms());
+            await Task.Delay(10.ms());
 
             var items = Plugin.ChapterApi.FetchClearTaskItems();
             progressItem.PercentComplete = 20;
             RaiseUIViewInfoChanged();
-            await Task.Delay(100.ms());
+            await Task.Delay(10.ms());
 
             var total = items.Count;
             var current = 0;
@@ -82,7 +82,7 @@ namespace StrmAssistant.Options.View
                 progressItem.PercentComplete = adjustedProgress;
                 Plugin.Instance.Logger.Info("IntroSkip - Clear Task " + current + "/" + total + " - " + item.Path);
                 RaiseUIViewInfoChanged();
-                await Task.Delay(100.ms());
+                await Task.Delay(10.ms());
             }
 
             IntroSkipOptions.ClearIntroButton.IsEnabled = true;

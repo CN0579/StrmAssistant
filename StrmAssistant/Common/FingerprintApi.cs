@@ -367,7 +367,7 @@ namespace StrmAssistant.Common
                 }
             }
 
-            var isModSupported = Plugin.Instance.IntroSkipStore.GetOptions().IsModSupported;
+            var isModSupported = Plugin.Instance.IsModSupported;
             var items = _libraryManager.GetItemList(itemsFingerprintQuery).Where(i => isModSupported || !i.IsShortcut)
                 .OfType<Episode>().ToList();
 
@@ -410,7 +410,7 @@ namespace StrmAssistant.Common
                 }
             }
 
-            var isModSupported = Plugin.Instance.IntroSkipStore.GetOptions().IsModSupported;
+            var isModSupported = Plugin.Instance.IsModSupported;
             var items = _libraryManager.GetItemList(itemsFingerprintQuery).Where(i => isModSupported || !i.IsShortcut)
                 .OfType<Episode>().ToList();
 

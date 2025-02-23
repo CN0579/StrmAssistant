@@ -561,7 +561,7 @@
     <value>按偏好庫內或跨庫合併電影電視節目，掃庫後自動執行</value>
   </data>
   <data name="ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries" xml:space="preserve">
-    <value>在所有庫中拆分多版本電影</value>
+    <value>在所有庫中拆分多版本電影（電視節目請掃庫）</value>
   </data>
   <data name="ExperienceEnhanceOptions_EnableDeepDelete_Enable_Deep_Delete" xml:space="preserve">
     <value>啟用深度刪除</value>
