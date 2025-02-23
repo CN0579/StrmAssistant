@@ -558,7 +558,7 @@
     <value>跨媒體庫合併</value>
   </data>
   <data name="MergeMovieTask_Description_Merge_movies_per_library_or_across_libraries_per_preference" xml:space="preserve">
-    <value>按偏好庫內或跨庫合併電影，掃庫後自動運行</value>
+    <value>按偏好庫內或跨庫合併電影電視節目，掃庫後自動執行</value>
   </data>
   <data name="ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries" xml:space="preserve">
     <value>在所有庫中拆分多版本電影</value>

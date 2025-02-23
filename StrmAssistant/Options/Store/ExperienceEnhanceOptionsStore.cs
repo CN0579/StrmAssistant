@@ -46,18 +46,22 @@ namespace StrmAssistant.Options.Store
                 var changes = PropertyChangeDetector.DetectObjectPropertyChanges(ExperienceEnhanceOptions, options);
                 var changedProperties = new HashSet<string>(changes.Select(c => c.PropertyName));
 
-                if (options.IsModSupported &&
-                    changedProperties.Contains(nameof(ExperienceEnhanceOptions.MergeMultiVersion)))
+                if (changedProperties.Contains(nameof(ExperienceEnhanceOptions.MergeMultiVersion)))
                 {
-                    if (options.MergeMultiVersion)
+                    if (options.IsModSupported)
                     {
-                        PatchManager.MergeMultiVersion.Patch();
-                    }
-                    else
-                    {
-                        PatchManager.MergeMultiVersion.Unpatch();
+                        if (options.MergeMultiVersion)
+                        {
+                            PatchManager.MergeMultiVersion.Patch();
+                        }
+                        else
+                        {
+                            PatchManager.MergeMultiVersion.Unpatch();
+                        }
                     }
                 }
+
+                if (options.MergeMultiVersion) Plugin.LibraryApi.EnsureLibraryEnabledAutomaticSeriesGrouping();
 
                 if (changedProperties.Contains(nameof(ExperienceEnhanceOptions.EnhanceNotificationSystem)))
                 {

@@ -1,8 +1,13 @@
-﻿using MediaBrowser.Controller.Entities;
+﻿using HarmonyLib;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Providers;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Tasks;
+using StrmAssistant.Common;
 using StrmAssistant.Properties;
 using System;
 using System.Collections.Generic;
@@ -32,71 +37,121 @@ namespace StrmAssistant.ScheduledTask
     {
         private readonly ILogger _logger;
         private readonly ILibraryManager _libraryManager;
+        private readonly IProviderManager _providerManager;
 
-        public static readonly AsyncLocal<CollectionFolder> PerLibrary = new AsyncLocal<CollectionFolder>();
+        public static readonly AsyncLocal<CollectionFolder> CurrentScanLibrary = new AsyncLocal<CollectionFolder>();
 
-        public MergeMultiVersionTask(ILibraryManager libraryManager)
+        public MergeMultiVersionTask(ILibraryManager libraryManager, IProviderManager providerManager)
         {
             _logger = Plugin.Instance.Logger;
             _libraryManager = libraryManager;
+            _providerManager = providerManager;
         }
 
-        public Task Execute(CancellationToken cancellationToken, IProgress<double> progress)
+        public async Task Execute(CancellationToken cancellationToken, IProgress<double> progress)
         {
             _logger.Info("MergeMultiVersion - Scheduled Task Execute");
 
-            var globalScope = Plugin.Instance.ExperienceEnhanceStore.GetOptions()
-                .MergeMoviesPreference == MergeScopeOption.GlobalScope;
-            _logger.Info("MergeMultiVersion - Across Libraries: " + globalScope);
+            var currentScanLibrary = CurrentScanLibrary.Value;
+            CurrentScanLibrary.Value = null;
 
-            long[][] libraryGroups;
-
-            if (!globalScope && PerLibrary.Value != null)
-            {
-                libraryGroups = new[] { new[] { PerLibrary.Value.InternalId } };
-                _logger.Info("MergeMultiVersion - Libraries: " + PerLibrary.Value.Name);
-                PerLibrary.Value = null;
-            }
-            else
-            {
-                var libraries = Plugin.LibraryApi.GetMovieLibraries();
-
-                if (!libraries.Any())
-                {
-                    progress.Report(100);
-                    _logger.Info("MergeMultiVersion - Scheduled Task Aborted");
-                    return Task.CompletedTask;
-                }
-
-                _logger.Info("MergeMultiVersion - Libraries: " + string.Join(", ", libraries.Select(l => l.Name)));
-
-                var libraryIds = libraries.Select(l => l.InternalId).ToArray();
-                libraryGroups = globalScope
-                    ? new[] { libraryIds }
-                    : libraryIds.Select(library => new[] { library }).ToArray();
-            }
-            
-            var totalGroups = libraryGroups.Length;
-            var groupProgressWeight = 100.0 / totalGroups;
             double cumulativeProgress = 0;
 
-            foreach (var group in libraryGroups)
+            var seriesLibraryGroups = PrepareMergeSeries();
+            var movieLibraryGroups = PrepareMergeMovies(currentScanLibrary);
+
+            var processSeries = seriesLibraryGroups.Any() && (currentScanLibrary is null ||
+                                                              currentScanLibrary.CollectionType == CollectionType.TvShows.ToString() ||
+                                                              currentScanLibrary.CollectionType is null);
+            var processMovies = movieLibraryGroups.Any() && (currentScanLibrary is null ||
+                                                             currentScanLibrary.CollectionType == CollectionType.Movies.ToString() ||
+                                                             currentScanLibrary.CollectionType is null);
+
+            if (processSeries)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var refreshOptions = new MetadataRefreshOptions(LibraryApi.MinimumRefreshOptions);
+                Traverse.Create(refreshOptions).Property("Recursive").SetValue(true);
 
-                var groupProgress = new Progress<double>(p =>
+                var multiply = processMovies ? 1 : 2;
+
+                var alternativeSeries = FindAlternativeSeries(seriesLibraryGroups);
+                progress.Report(cumulativeProgress += 5.0 * multiply);
+
+                if (alternativeSeries.Any())
                 {
-                    cumulativeProgress += p * groupProgressWeight / 100;
-                    progress.Report(cumulativeProgress);
-                });
+                    var seriesProgressWeight = 35.0 * multiply / alternativeSeries.Count;
 
-                MergeMovies(group, groupProgress);
+                    foreach (var series in alternativeSeries)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        if (currentScanLibrary is null || _libraryManager.GetCollectionFolders(series)
+                                .Any(c => c.InternalId != currentScanLibrary.InternalId))
+                        {
+                            await _providerManager.RefreshFullItem(series, refreshOptions, cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+
+                        cumulativeProgress += seriesProgressWeight;
+                        progress.Report(cumulativeProgress);
+
+                        _logger.Info($"MergeMultiVersion - Series merged: {series.Name} - {series.Path}");
+                    }
+                }
+                else
+                {
+                    cumulativeProgress += 35.0 * multiply;
+                    progress.Report(cumulativeProgress);
+                }
+
+                var inconsistentSeries = FindInconsistentSeries(seriesLibraryGroups);
+                progress.Report(cumulativeProgress += 5.0 * multiply);
+
+                if (inconsistentSeries.Any())
+                {
+                    var seriesProgressWeight = 5.0 * multiply / inconsistentSeries.Count;
+
+                    foreach (var series in inconsistentSeries)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        await _providerManager.RefreshFullItem(series, refreshOptions, cancellationToken)
+                            .ConfigureAwait(false);
+
+                        cumulativeProgress += seriesProgressWeight;
+                        progress.Report(cumulativeProgress);
+
+                        _logger.Info($"MergeMultiVersion - Series merged: {series.Name} - {series.Path}");
+                    }
+                }
+                else
+                {
+                    cumulativeProgress += 5.0 * multiply;
+                    progress.Report(cumulativeProgress);
+                }
+            }
+
+            if (processMovies)
+            {
+                var totalGroups = movieLibraryGroups.Length;
+                var groupProgressWeight = processSeries ? 50.0 / totalGroups : 100.0 / totalGroups;
+
+                foreach (var group in movieLibraryGroups)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var groupProgress = new Progress<double>(p =>
+                    {
+                        cumulativeProgress += p * groupProgressWeight / 100;
+                        progress.Report(cumulativeProgress);
+                    });
+
+                    ExecuteMergeMovies(group, groupProgress);
+                }
             }
 
             progress.Report(100);
             _logger.Info("MergeMultiVersion - Scheduled Task Complete");
-
-            return Task.CompletedTask;
         }
 
         public string Category => Resources.ResourceManager.GetString("PluginOptions_EditorTitle_Strm_Assistant",
@@ -121,21 +176,144 @@ namespace StrmAssistant.ScheduledTask
         
         public bool IsLogged => true;
 
-        private void MergeMovies(long[] parents, IProgress<double> groupProgress = null)
+        private long[] PrepareMergeSeries()
         {
-            var movieQuery = new InternalItemsQuery
+            var globalScope = Plugin.Instance.ExperienceEnhanceStore.GetOptions()
+                .MergeSeriesPreference == MergeScopeOption.GlobalScope;
+            _logger.Info("MergeMultiVersion - Series Across Libraries: " + globalScope);
+
+            if (!Plugin.Instance.IsModSupported || !globalScope) return Array.Empty<long>();
+
+            var libraries = Plugin.LibraryApi.GetSeriesLibraries()
+                .Where(l => l.GetLibraryOptions().EnableAutomaticSeriesGrouping)
+                .ToList();
+
+            if (!libraries.Any()) return Array.Empty<long>();
+
+            _logger.Info("MergeMultiVersion - Series Libraries: " + string.Join(", ", libraries.Select(l => l.Name)));
+
+            var libraryGroups = libraries.Select(l => l.InternalId).ToArray();
+
+            return libraryGroups;
+        }
+
+        private List<BaseItem> FindAlternativeSeries(long[] parents)
+        {
+            var allSeries = _libraryManager.GetItemList(new InternalItemsQuery
+                {
+                    Recursive = true,
+                    ParentIds = parents,
+                    IncludeItemTypes = new[] { nameof(Series) },
+                    HasAnyProviderId = new[]
+                    {
+                        MetadataProviders.Tmdb.ToString(), MetadataProviders.Imdb.ToString(),
+                        MetadataProviders.Tvdb.ToString()
+                    }
+                })
+                .ToList();
+
+            var dupSeries = allSeries
+                .SelectMany(item => item.ProviderIds.Select(kvp => new { kvp.Key, kvp.Value, item }))
+                .GroupBy(x => new { x.Key, x.Value })
+                .Where(g =>
+                {
+                    var uniqueKeys = new HashSet<string>();
+                    foreach (var x in g)
+                    {
+                        uniqueKeys.Add(x.item.PresentationUniqueKey);
+                        if (uniqueKeys.Count > 1) return true;
+                    }
+
+                    return false;
+                })
+                .SelectMany(g => g.Select(x => x.item))
+                .GroupBy(item => item.InternalId)
+                .Select(g => g.First())
+                .ToList();
+
+            return dupSeries;
+        }
+
+        private List<Series> FindInconsistentSeries(long[] parents)
+        {
+            var allSeries = _libraryManager.GetItemList(new InternalItemsQuery
+                {
+                    Recursive = true,
+                    ParentIds = parents,
+                    IncludeItemTypes = new[] { nameof(Season), nameof(Episode) },
+                    GroupBySeriesPresentationUniqueKey = true,
+                    HasAnyProviderId = new[]
+                    {
+                        MetadataProviders.Tmdb.ToString(), MetadataProviders.Imdb.ToString(),
+                        MetadataProviders.Tvdb.ToString()
+                    }
+                })
+                .ToList();
+
+            var inconsistentSeries = allSeries
+                .Select(item => new
+                {
+                    Series = (item as Season)?.Series ?? (item as Episode)?.Series, item.SeriesPresentationUniqueKey
+                })
+                .Where(x => x.Series != null && x.SeriesPresentationUniqueKey != x.Series.PresentationUniqueKey)
+                .GroupBy(x => x.Series.InternalId)
+                .Select(g => g.First().Series)
+                .ToList();
+
+            allSeries.Clear();
+            allSeries.TrimExcess();
+
+            return inconsistentSeries;
+        }
+
+        private long[][] PrepareMergeMovies(CollectionFolder currentScanLibrary)
+        {
+            var globalScope = Plugin.Instance.ExperienceEnhanceStore.GetOptions()
+                .MergeMoviesPreference == MergeScopeOption.GlobalScope;
+            _logger.Info("MergeMultiVersion - Movies Across Libraries: " + globalScope);
+
+            var libraryGroups = Array.Empty<long[]>();
+
+            if (!globalScope && currentScanLibrary != null)
+            {
+                libraryGroups = new[] { new[] { currentScanLibrary.InternalId } };
+                _logger.Info("MergeMultiVersion - Movies Libraries: " + currentScanLibrary.Name);
+            }
+            else
+            {
+                var libraries = Plugin.LibraryApi.GetMovieLibraries();
+
+                if (!libraries.Any()) return libraryGroups;
+
+                _logger.Info("MergeMultiVersion - Movies Libraries: " +
+                             string.Join(", ", libraries.Select(l => l.Name)));
+
+                var libraryIds = libraries.Select(l => l.InternalId).ToArray();
+                libraryGroups = globalScope
+                    ? new[] { libraryIds }
+                    : libraryIds.Select(library => new[] { library }).ToArray();
+            }
+
+            return libraryGroups;
+        }
+
+        private void ExecuteMergeMovies(long[] parents, IProgress<double> groupProgress = null)
+        {
+            var allMovies = _libraryManager.GetItemList(new InternalItemsQuery
             {
                 Recursive = true,
                 ParentIds = parents,
-                IncludeItemTypes = new[] { nameof(Movie) }
-            };
+                IncludeItemTypes = new[] { nameof(Movie) },
+                HasAnyProviderId = new[]
+                {
+                    MetadataProviders.Tmdb.ToString(),
+                    MetadataProviders.Imdb.ToString(),
+                    MetadataProviders.Tvdb.ToString()
+                }
+            }).Cast<Movie>().ToList();
 
-            var allMovies = _libraryManager.GetItemList(movieQuery).Cast<Movie>().ToList();
-            var checkKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "tmdb", "imdb", "tvdb" };
-            var dupMovies = allMovies.Where(item => item.ProviderIds != null)
-                .SelectMany(item => item.ProviderIds
-                    .Where(kvp => checkKeys.Contains(kvp.Key))
-                    .Select(kvp => new { kvp.Key, kvp.Value, item }))
+            var dupMovies = allMovies
+                .SelectMany(item => item.ProviderIds.Select(kvp => new { kvp.Key, kvp.Value, item }))
                 .GroupBy(kvp => new { kvp.Key, kvp.Value })
                 .Where(g =>
                 {
@@ -176,8 +354,10 @@ namespace StrmAssistant.ScheduledTask
 
                 var rootIdGroups = parentMap.Values.GroupBy(id => Find(id, parentMap)).ToList();
 
-                var movieLookup = dupMovies.SelectMany(g => g).GroupBy(kvp => Find(kvp.item.InternalId, parentMap))
-                    .ToDictionary(g => g.Key, g => g.Select(kvp => kvp.item).Distinct().ToList());
+                var movieLookup = dupMovies.SelectMany(g => g)
+                    .GroupBy(kvp => Find(kvp.item.InternalId, parentMap))
+                    .ToDictionary(d => d.Key,
+                        d => d.GroupBy(kvp => kvp.item.InternalId).Select(g => g.First().item).ToList());
 
                 var total = rootIdGroups.Count;
                 var current = 0;
@@ -195,7 +375,7 @@ namespace StrmAssistant.ScheduledTask
 
                     foreach (var item in movies)
                     {
-                        _logger.Info($"MergeMultiVersion - Item merged: {item.Name} - {item.Path}");
+                        _logger.Info($"MergeMultiVersion - Movie merged: {item.Name} - {item.Path}");
                     }
 
                     current++;

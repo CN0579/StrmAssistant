@@ -645,7 +645,7 @@
     <value>Global Scope</value>
   </data>
   <data name="MergeMovieTask_Description_Merge_movies_per_library_or_across_libraries_per_preference" xml:space="preserve">
-    <value>Merge movies per library or across libraries, triggered post library scan</value>
+    <value>Merge movies and series per library or across libraries, triggered post library scan</value>
   </data>
   <data name="ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries" xml:space="preserve">
     <value>Split multi-version movies in all libraries</value>

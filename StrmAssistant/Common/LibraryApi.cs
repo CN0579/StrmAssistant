@@ -738,6 +738,17 @@ namespace StrmAssistant.Common
             return libraries;
         }
 
+        public List<CollectionFolder> GetSeriesLibraries()
+        {
+            var libraries = _libraryManager
+                .GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { nameof(CollectionFolder) } })
+                .OfType<CollectionFolder>()
+                .Where(l => l.CollectionType == CollectionType.TvShows.ToString() || l.CollectionType is null)
+                .ToList();
+
+            return libraries;
+        }
+
         public List<Movie> FetchSplitMovieItems()
         {
             var libraries = GetMovieLibraries();
@@ -760,6 +771,21 @@ namespace StrmAssistant.Common
                 .Where(m => m.GetAlternateVersionIds().Count > 0).ToList();
 
             return altMovies;
+        }
+
+        public void EnsureLibraryEnabledAutomaticSeriesGrouping()
+        {
+            var libraries = _libraryManager.GetVirtualFolders()
+                .Where(f => f.CollectionType == CollectionType.TvShows.ToString() || f.CollectionType is null)
+                .ToList();
+
+            foreach (var library in libraries)
+            {
+                if (!library.LibraryOptions.EnableAutomaticSeriesGrouping)
+                {
+                    library.LibraryOptions.EnableAutomaticSeriesGrouping = true;
+                }
+            }
         }
 
         private FileSystemMetadata[] GetRelatedPaths(string basename, string folder)
@@ -940,6 +966,12 @@ namespace StrmAssistant.Common
 
         public BaseItem[] GetAllCollectionFolders(Series series)
         {
+            if (!(series.HasProviderId(MetadataProviders.Tmdb) || series.HasProviderId(MetadataProviders.Imdb) ||
+                  series.HasProviderId(MetadataProviders.Tvdb)))
+            {
+                return Array.Empty<BaseItem>();
+            }
+
             var allSeries = _libraryManager.GetItemList(new InternalItemsQuery
             {
                 EnableTotalRecordCount = false,
@@ -973,37 +1005,6 @@ namespace StrmAssistant.Common
             }
 
             return collectionFolders.OrderBy(c => c.InternalId).ToArray();
-        }
-
-        public void UpdateSeriesAlternativeVersions(Series series)
-        {
-            var altItems = _libraryManager.GetItemList(new InternalItemsQuery
-            {
-                EnableTotalRecordCount = false,
-                Recursive = false,
-                ExcludeParentIds = new[] { series.ParentId },
-                PresentationUniqueKeyNotEquals = series.PresentationUniqueKey,
-                IncludeItemTypes = new[] { nameof(Series) },
-                AnyProviderIdEquals = new List<KeyValuePair<string, string>>
-                {
-                    new KeyValuePair<string, string>(MetadataProviders.Tmdb.ToString(),
-                        series.GetProviderId(MetadataProviders.Tmdb)),
-                    new KeyValuePair<string, string>(MetadataProviders.Imdb.ToString(),
-                        series.GetProviderId(MetadataProviders.Imdb)),
-                    new KeyValuePair<string, string>(MetadataProviders.Tvdb.ToString(),
-                        series.GetProviderId(MetadataProviders.Tvdb))
-                }
-            }).ToList();
-
-            foreach (var item in altItems)
-            {
-                item.PresentationUniqueKey = item.CreatePresentationUniqueKey(null, null);
-
-                _libraryManager.UpdateItems(new List<BaseItem> { item }, null,
-                    ItemUpdateType.MetadataImport, false, false, null, CancellationToken.None);
-
-                _providerManager.QueueRefresh(item.InternalId, MinimumRefreshOptions, RefreshPriority.High);
-            }
         }
     }
 }

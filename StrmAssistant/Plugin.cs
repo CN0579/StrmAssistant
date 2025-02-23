@@ -39,6 +39,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using static StrmAssistant.Options.ExperienceEnhanceOptions;
 using static StrmAssistant.Options.GeneralOptions;
@@ -111,7 +112,7 @@ namespace StrmAssistant
             ExperienceEnhanceStore =
                 new ExperienceEnhanceOptionsStore(applicationHost, Logger, Name + "_" + nameof(ExperienceEnhanceOptions));
 
-            PatchManager.Initialize();
+            if (IsModSupported) PatchManager.Initialize();
 
             LibraryApi = new LibraryApi(libraryManager, fileSystem, mediaMountManager, providerManager, userManager);
             MediaInfoApi = new MediaInfoApi(libraryManager, fileSystem, providerManager, mediaSourceManager,
@@ -153,19 +154,20 @@ namespace StrmAssistant
 
         private void OnRefreshCompleted(object sender, GenericEventArgs<RefreshProgressInfo> e)
         {
-            if (!_libraryManager.IsScanRunning && ExperienceEnhanceStore.GetOptions().MergeMultiVersion &&
-                e.Argument.Item.IsTopParent)
+            if (_libraryManager.IsScanRunning) return;
+
+            var options = ExperienceEnhanceStore.GetOptions();
+
+            if (options.MergeMultiVersion && e.Argument.Item.IsTopParent)
             {
                 var library = e.Argument.CollectionFolders.OfType<CollectionFolder>().FirstOrDefault();
 
                 if (library != null && (library.CollectionType == CollectionType.Movies.ToString() ||
+                                        library.CollectionType == CollectionType.TvShows.ToString() &&
+                                        options.MergeSeriesPreference == MergeScopeOption.GlobalScope ||
                                         library.CollectionType is null))
                 {
-                    if (ExperienceEnhanceStore.GetOptions().MergeMoviesPreference ==
-                        MergeScopeOption.LibraryScope)
-                    {
-                        MergeMultiVersionTask.PerLibrary.Value = library;
-                    }
+                    MergeMultiVersionTask.CurrentScanLibrary.Value = library;
 
                     var mergeMoviesTask = _taskManager.ScheduledTasks.FirstOrDefault(t =>
                         t.ScheduledTask is MergeMultiVersionTask);
@@ -259,15 +261,6 @@ namespace StrmAssistant
                             }
                         }
                     }
-                }
-
-                if (ExperienceEnhanceStore.GetOptions().IsModSupported &&
-                    ExperienceEnhanceStore.GetOptions().MergeMultiVersion &&
-                    ExperienceEnhanceStore.GetOptions().MergeSeriesPreference ==
-                    MergeScopeOption.GlobalScope && e.Item is Series series && series.ProviderIds.Any() &&
-                    _libraryManager.GetLibraryOptions(series).EnableAutomaticSeriesGrouping)
-                {
-                    LibraryApi.UpdateSeriesAlternativeVersions(series);
                 }
 
                 if (e.Item is Movie || e.Item is Series || e.Item is Episode)
@@ -367,6 +360,8 @@ namespace StrmAssistant
 
         public CultureInfo DefaultUICulture =>
             new CultureInfo(MainOptionsStore.GetOptions().AboutOptions.DefaultUICulture);
+
+        public bool IsModSupported => RuntimeInformation.ProcessArchitecture == Architecture.X64;
 
         public Stream GetThumbImage()
         {
