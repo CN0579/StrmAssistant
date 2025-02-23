@@ -109,6 +109,8 @@ namespace StrmAssistant
             ExperienceEnhanceStore =
                 new ExperienceEnhanceOptionsStore(applicationHost, Logger, Name + "_" + nameof(ExperienceEnhanceOptions));
 
+            PatchManager.Initialize();
+
             LibraryApi = new LibraryApi(libraryManager, fileSystem, mediaMountManager, userManager);
             MediaInfoApi = new MediaInfoApi(libraryManager, fileSystem, mediaSourceManager, itemRepository,
                 jsonSerializer, libraryMonitor);
@@ -123,7 +125,6 @@ namespace StrmAssistant
                 jsonSerializer, httpClient);
             ShortcutMenuHelper.Initialize(configurationManager);
 
-            PatchManager.Initialize();
             if (MainOptionsStore.GetOptions().GeneralOptions.CatchupMode)
             {
                 UpdateCatchupScope(MainOptionsStore.GetOptions().GeneralOptions.CatchupTaskScope);

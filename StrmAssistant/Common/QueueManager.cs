@@ -464,7 +464,7 @@ namespace StrmAssistant.Common
                                             dateCreated.Offset);
 
                                         result2 = await Plugin.FingerprintApi
-                                            .ExtractIntroFingerprint(taskItem, cancellationToken)
+                                            .CreateTitleFingerprint(taskItem, cancellationToken)
                                             .ConfigureAwait(false);
 
                                         Logger.Info("IntroFingerprintExtract - Episode processed: " + taskItem.Name + " - " +

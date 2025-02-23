@@ -1,3 +1,4 @@
+using HarmonyLib;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities;
@@ -30,12 +31,13 @@ namespace StrmAssistant.Common
         private readonly ILogger _logger;
 
         private static readonly PatchTracker PatchTracker =
-            new PatchTracker(typeof(FingerprintApi), PatchApproach.Reflection);
-        private readonly object AudioFingerprintManager;
-        private readonly MethodInfo CreateTitleFingerprint;
-        private readonly MethodInfo GetAllFingerprintFilesForSeason;
-        private readonly MethodInfo UpdateSequencesForSeason;
-        private readonly FieldInfo TimeoutMs;
+            new PatchTracker(typeof(FingerprintApi),
+                Plugin.Instance.IsModSupported ? PatchApproach.Harmony : PatchApproach.Reflection);
+        private readonly object _audioFingerprintManager;
+        private readonly MethodInfo _createTitleFingerprint;
+        private readonly MethodInfo _getAllFingerprintFilesForSeason;
+        private readonly MethodInfo _updateSequencesForSeason;
+        private readonly FieldInfo _timeoutMs;
 
         public static List<string> LibraryPathsInScope;
 
@@ -62,23 +64,23 @@ namespace StrmAssistant.Common
                         typeof(IMediaEncoder), typeof(IMediaMountManager), typeof(IJsonSerializer),
                         typeof(IServerApplicationHost)
                     }, null);
-                AudioFingerprintManager = audioFingerprintManagerConstructor?.Invoke(new object[]
+                _audioFingerprintManager = audioFingerprintManagerConstructor?.Invoke(new object[]
                 {
                     fileSystem, _logger, applicationPaths, ffmpegManager, mediaEncoder, mediaMountManager,
                     jsonSerializer, serverApplicationHost
                 });
-                CreateTitleFingerprint = audioFingerprintManager.GetMethod("CreateTitleFingerprint",
+                _createTitleFingerprint = audioFingerprintManager.GetMethod("CreateTitleFingerprint",
                     BindingFlags.Public | BindingFlags.Instance, null,
                     new[]
                     {
                         typeof(Episode), typeof(LibraryOptions), typeof(IDirectoryService),
                         typeof(CancellationToken)
                     }, null);
-                GetAllFingerprintFilesForSeason = audioFingerprintManager.GetMethod("GetAllFingerprintFilesForSeason",
+                _getAllFingerprintFilesForSeason = audioFingerprintManager.GetMethod("GetAllFingerprintFilesForSeason",
                     BindingFlags.Public | BindingFlags.Instance);
-                UpdateSequencesForSeason = audioFingerprintManager.GetMethod("UpdateSequencesForSeason",
+                _updateSequencesForSeason = audioFingerprintManager.GetMethod("UpdateSequencesForSeason",
                     BindingFlags.Public | BindingFlags.Instance);
-                TimeoutMs = audioFingerprintManager.GetField("TimeoutMs",
+                _timeoutMs = audioFingerprintManager.GetField("TimeoutMs",
                     BindingFlags.NonPublic | BindingFlags.Instance);
 
                 PatchTimeout(Plugin.Instance.MainOptionsStore.GetOptions().GeneralOptions.MaxConcurrentCount);
@@ -89,18 +91,101 @@ namespace StrmAssistant.Common
                 _logger.Debug(e.StackTrace);
             }
 
-            if (AudioFingerprintManager is null || CreateTitleFingerprint is null ||
-                GetAllFingerprintFilesForSeason is null || UpdateSequencesForSeason is null || TimeoutMs is null)
+            if (_audioFingerprintManager is null || _createTitleFingerprint is null ||
+                _getAllFingerprintFilesForSeason is null || _updateSequencesForSeason is null || _timeoutMs is null)
             {
                 _logger.Warn($"{PatchTracker.PatchType.Name} Init Failed");
                 PatchTracker.FallbackPatchApproach = PatchApproach.None;
+            }
+            else if (Plugin.Instance.IsModSupported)
+            {
+                PatchManager.ReversePatch(PatchTracker, _createTitleFingerprint, nameof(CreateTitleFingerprintStub));
+                PatchManager.ReversePatch(PatchTracker, _getAllFingerprintFilesForSeason,
+                    nameof(GetAllFingerprintFilesForSeasonStub));
+                PatchManager.ReversePatch(PatchTracker, _updateSequencesForSeason,
+                    nameof(UpdateSequencesForSeasonStub));
+            }
+        }
+
+        [HarmonyReversePatch]
+        private static async Task<Tuple<string, bool>> CreateTitleFingerprintStub(object instance, Episode item, LibraryOptions libraryOptions,
+            IDirectoryService directoryService, CancellationToken cancellationToken) =>
+            throw new NotImplementedException();
+
+        public Task<Tuple<string, bool>> CreateTitleFingerprint(Episode item, IDirectoryService directoryService,
+            CancellationToken cancellationToken)
+        {
+            var libraryOptions = _libraryManager.GetLibraryOptions(item);
+
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    return CreateTitleFingerprintStub(_audioFingerprintManager, item, libraryOptions, directoryService,
+                        cancellationToken);
+                case PatchApproach.Reflection:
+                    return (Task<Tuple<string, bool>>)_createTitleFingerprint.Invoke(_audioFingerprintManager,
+                        new object[] { item, libraryOptions, directoryService, cancellationToken });
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        public Task<Tuple<string, bool>> CreateTitleFingerprint(Episode item, CancellationToken cancellationToken)
+        {
+            var directoryService = new DirectoryService(_logger, _fileSystem);
+
+            return CreateTitleFingerprint(item, directoryService, cancellationToken);
+        }
+
+        [HarmonyReversePatch]
+        private static async Task<object> GetAllFingerprintFilesForSeasonStub(object instance, Season season,
+            Episode[] episodes, LibraryOptions libraryOptions, IDirectoryService directoryService,
+            CancellationToken cancellationToken) =>
+            throw new NotImplementedException();
+
+        private Task<object> GetAllFingerprintFilesForSeason(Season season, Episode[] episodes,
+            LibraryOptions libraryOptions, IDirectoryService directoryService, CancellationToken cancellationToken)
+        {
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    return GetAllFingerprintFilesForSeasonStub(_audioFingerprintManager, season, episodes,
+                        libraryOptions, directoryService, cancellationToken);
+                case PatchApproach.Reflection:
+                    return (Task<object>)_getAllFingerprintFilesForSeason.Invoke(_audioFingerprintManager,
+                        new object[] { season, episodes, libraryOptions, directoryService, cancellationToken });
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        [HarmonyReversePatch]
+        private static void UpdateSequencesForSeasonStub(object instance, Season season, object seasonFingerprintInfo,
+            Episode episode, LibraryOptions libraryOptions, IDirectoryService directoryService) =>
+            throw new NotImplementedException();
+
+        private void UpdateSequencesForSeason(Season season, object seasonFingerprintInfo, Episode episode,
+            LibraryOptions libraryOptions, IDirectoryService directoryService)
+        {
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    UpdateSequencesForSeasonStub(_audioFingerprintManager, season, seasonFingerprintInfo, episode,
+                        libraryOptions, directoryService);
+                    break;
+                case PatchApproach.Reflection:
+                    _updateSequencesForSeason.Invoke(_audioFingerprintManager,
+                        new[] { season, seasonFingerprintInfo, episode, libraryOptions, directoryService });
+                    break;
+                default:
+                    throw new NotImplementedException();
             }
         }
 
         public void PatchTimeout(int maxConcurrentCount)
         {
             var newTimeout = maxConcurrentCount * Convert.ToInt32(TimeSpan.FromMinutes(10.0).TotalMilliseconds);
-            TimeoutMs.SetValue(AudioFingerprintManager, newTimeout);
+            _timeoutMs.SetValue(_audioFingerprintManager, newTimeout);
         }
 
         public bool IsLibraryInScope(BaseItem item)
@@ -357,23 +442,6 @@ namespace StrmAssistant.Common
                 Plugin.Instance.IntroSkipStore.GetOptions().IntroDetectionFingerprintMinutes);
         }
 
-        public async Task<Tuple<string, bool>> ExtractIntroFingerprint(Episode item, IDirectoryService directoryService,
-            CancellationToken cancellationToken)
-        {
-            var libraryOptions = _libraryManager.GetLibraryOptions(item);
-            var result = await ((Task<Tuple<string, bool>>)CreateTitleFingerprint.Invoke(AudioFingerprintManager,
-                new object[] { item, libraryOptions, directoryService, cancellationToken })).ConfigureAwait(false);
-
-            return result;
-        }
-
-        public async Task<Tuple<string, bool>> ExtractIntroFingerprint(Episode item, CancellationToken cancellationToken)
-        {
-            var directoryService = new DirectoryService(_logger, _fileSystem);
-
-            return await ExtractIntroFingerprint(item, directoryService, cancellationToken).ConfigureAwait(false);
-        }
-
         public async Task UpdateIntroMarkerForSeason(Season season, CancellationToken cancellationToken)
         {
             var introDetectionFingerprintMinutes =
@@ -395,18 +463,13 @@ namespace StrmAssistant.Common
             episodeQuery.WithoutChapterMarkers = new[] { MarkerType.IntroStart };
             var episodesWithoutMarkers = season.GetEpisodes(episodeQuery).Items.OfType<Episode>().ToArray();
 
-            var task = (Task)GetAllFingerprintFilesForSeason.Invoke(AudioFingerprintManager,
-                new object[] { season, allEpisodes, libraryOptions, directoryService, cancellationToken });
-
-            await task.ConfigureAwait(false);
-
-            var seasonFingerprintInfo = task.GetType().GetProperty("Result")?.GetValue(task);
+            var seasonFingerprintInfo = await GetAllFingerprintFilesForSeason(season,
+                allEpisodes, libraryOptions, directoryService, cancellationToken).ConfigureAwait(false);
 
             foreach (var episode in episodesWithoutMarkers)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                UpdateSequencesForSeason.Invoke(AudioFingerprintManager,
-                    new[] { season, seasonFingerprintInfo, episode, libraryOptions, directoryService });
+                UpdateSequencesForSeason(season, seasonFingerprintInfo, episode, libraryOptions, directoryService);
             }
         }
     }

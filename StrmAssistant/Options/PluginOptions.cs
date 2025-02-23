@@ -35,7 +35,7 @@ namespace StrmAssistant.Options
         public AboutOptions AboutOptions { get; set; } = new AboutOptions();
 
         [Browsable(false)]
-        public bool? IsModSuccess => PatchManager.IsModSuccess();
+        public bool IsModSuccess => PatchManager.IsModSuccess();
 
         [Browsable(false)]
         public bool ShowConflictPluginLoadedStatus =>

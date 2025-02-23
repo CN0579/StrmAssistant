@@ -1,8 +1,11 @@
+using Emby.Naming.Common;
+using HarmonyLib;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Persistence;
 using MediaBrowser.Controller.Providers;
+using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Globalization;
 using MediaBrowser.Model.IO;
@@ -27,12 +30,13 @@ namespace StrmAssistant.Common
         private readonly IItemRepository _itemRepository;
 
         private static readonly PatchTracker PatchTracker =
-            new PatchTracker(typeof(SubtitleApi), PatchApproach.Reflection);
-        private readonly object SubtitleResolver;
-        private readonly MethodInfo GetExternalSubtitleFiles;
-        private readonly MethodInfo GetExternalSubtitleStreams;
-        private readonly object FFProbeSubtitleInfo;
-        private readonly MethodInfo UpdateExternalSubtitleStream;
+            new PatchTracker(typeof(SubtitleApi),
+                Plugin.Instance.IsModSupported ? PatchApproach.Harmony : PatchApproach.Reflection);
+        private readonly object _subtitleResolver;
+        private readonly MethodInfo _getExternalSubtitleFiles;
+        private readonly MethodInfo _getExternalSubtitleStreams;
+        private readonly object _ffProbeSubtitleInfo;
+        private readonly MethodInfo _updateExternalSubtitleStream;
 
         private static readonly HashSet<string> ProbeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             { ".sub", ".smi", ".sami", ".mpl" };
@@ -56,18 +60,18 @@ namespace StrmAssistant.Common
                 {
                     typeof(ILocalizationManager), typeof(IFileSystem), typeof(ILibraryManager)
                 });
-                SubtitleResolver = subtitleResolverConstructor?.Invoke(new object[]
+                _subtitleResolver = subtitleResolverConstructor?.Invoke(new object[]
                     { localizationManager, fileSystem, libraryManager });
-                GetExternalSubtitleFiles = subtitleResolverType.GetMethod("GetExternalSubtitleFiles");
-                GetExternalSubtitleStreams = subtitleResolverType.GetMethod("GetExternalSubtitleStreams");
+                _getExternalSubtitleFiles = subtitleResolverType.GetMethod("GetExternalSubtitleFiles");
+                _getExternalSubtitleStreams = subtitleResolverType.GetMethod("GetExternalSubtitleStreams");
 
                 var ffProbeSubtitleInfoType = embyProviders.GetType("Emby.Providers.MediaInfo.FFProbeSubtitleInfo");
                 var ffProbeSubtitleInfoConstructor = ffProbeSubtitleInfoType.GetConstructor(new[]
                 {
                     typeof(IMediaProbeManager)
                 });
-                FFProbeSubtitleInfo = ffProbeSubtitleInfoConstructor?.Invoke(new object[] { mediaProbeManager });
-                UpdateExternalSubtitleStream = ffProbeSubtitleInfoType.GetMethod("UpdateExternalSubtitleStream");
+                _ffProbeSubtitleInfo = ffProbeSubtitleInfoConstructor?.Invoke(new object[] { mediaProbeManager });
+                _updateExternalSubtitleStream = ffProbeSubtitleInfoType.GetMethod("UpdateExternalSubtitleStream");
             }
             catch (Exception e)
             {
@@ -75,56 +79,123 @@ namespace StrmAssistant.Common
                 _logger.Debug(e.StackTrace);
             }
 
-            if (SubtitleResolver is null || GetExternalSubtitleFiles is null || GetExternalSubtitleStreams is null ||
-                FFProbeSubtitleInfo is null || UpdateExternalSubtitleStream is null)
+            if (_subtitleResolver is null || _getExternalSubtitleFiles is null || _getExternalSubtitleStreams is null ||
+                _ffProbeSubtitleInfo is null || _updateExternalSubtitleStream is null)
             {
                 _logger.Warn($"{PatchTracker.PatchType.Name} Init Failed");
                 PatchTracker.FallbackPatchApproach = PatchApproach.None;
+            }
+            else if (Plugin.Instance.IsModSupported)
+            {
+                PatchManager.ReversePatch(PatchTracker, _getExternalSubtitleFiles,
+                    nameof(GetExternalSubtitleFilesStub));
+                PatchManager.ReversePatch(PatchTracker, _getExternalSubtitleStreams,
+                    nameof(GetExternalSubtitleStreamsStub));
+                PatchManager.ReversePatch(PatchTracker, _updateExternalSubtitleStream,
+                    nameof(UpdateExternalSubtitleStreamStub));
+            }
+        }
+
+        [HarmonyReversePatch]
+        private static List<string> GetExternalSubtitleFilesStub(object instance, BaseItem item,
+            IDirectoryService directoryService, NamingOptions namingOptions, bool clearCache) =>
+            throw new NotImplementedException();
+
+        private List<string> GetExternalSubtitleFiles(BaseItem item, IDirectoryService directoryService,
+            bool clearCache)
+        {
+            var namingOptions = _libraryManager.GetNamingOptions();
+
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    return GetExternalSubtitleFilesStub(_subtitleResolver, item, directoryService, namingOptions,
+                        clearCache);
+                case PatchApproach.Reflection:
+                    return (List<string>)_getExternalSubtitleFiles.Invoke(_subtitleResolver,
+                        new object[] { item, directoryService, namingOptions, clearCache });
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        [HarmonyReversePatch]
+        private static List<MediaStream> GetExternalSubtitleStreamsStub(object instance, BaseItem item, int startIndex,
+            IDirectoryService directoryService, NamingOptions namingOptions, bool clearCache) =>
+            throw new NotImplementedException();
+
+        private List<MediaStream> GetExternalSubtitleStreams(BaseItem item, int startIndex,
+            IDirectoryService directoryService, bool clearCache)
+        {
+            var namingOptions = _libraryManager.GetNamingOptions();
+
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    return GetExternalSubtitleStreamsStub(_subtitleResolver, item, startIndex, directoryService,
+                        namingOptions, clearCache);
+                case PatchApproach.Reflection:
+                    return (List<MediaStream>)_getExternalSubtitleStreams.Invoke(_subtitleResolver,
+                        new object[] { item, startIndex, directoryService, namingOptions, clearCache });
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        [HarmonyReversePatch]
+        private static async Task<bool> UpdateExternalSubtitleStreamStub(object instance, BaseItem item,
+            MediaStream subtitleStream, MetadataRefreshOptions options, LibraryOptions libraryOptions,
+            CancellationToken cancellationToken) =>
+            throw new NotImplementedException();
+
+        private Task<bool> UpdateExternalSubtitleStream(BaseItem item,
+            MediaStream subtitleStream, MetadataRefreshOptions options, CancellationToken cancellationToken)
+        {
+            var libraryOptions = _libraryManager.GetLibraryOptions(item);
+
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    return UpdateExternalSubtitleStreamStub(_ffProbeSubtitleInfo, item, subtitleStream, options, libraryOptions,
+                        cancellationToken);
+                case PatchApproach.Reflection:
+                    return (Task<bool>)_updateExternalSubtitleStream.Invoke(_ffProbeSubtitleInfo,
+                        new object[] { item, subtitleStream, options, libraryOptions, cancellationToken });
+                default:
+                    throw new NotImplementedException();
             }
         }
 
         public bool HasExternalSubtitleChanged(BaseItem item, IDirectoryService directoryService)
         {
             var currentExternalSubtitleFiles = _libraryManager.GetExternalSubtitleFiles(item.InternalId);
-            var namingOptions = _libraryManager.GetNamingOptions();
 
-            if (GetExternalSubtitleFiles.Invoke(SubtitleResolver,
-                        new object[] { item, directoryService, namingOptions, false }) is List<string>
-                    newExternalSubtitleFiles &&
-                !currentExternalSubtitleFiles.SequenceEqual(newExternalSubtitleFiles, StringComparer.Ordinal))
-            {
-                return true;
-            }
-            return false;
+            return GetExternalSubtitleFiles(item, directoryService, false) is
+                       { } newExternalSubtitleFiles &&
+                   !currentExternalSubtitleFiles.SequenceEqual(newExternalSubtitleFiles, StringComparer.Ordinal);
         }
 
         public async Task UpdateExternalSubtitles(BaseItem item, CancellationToken cancellationToken)
         {
             var directoryService = new DirectoryService(_logger, _fileSystem);
             var refreshOptions = LibraryApi.MediaInfoRefreshOptions;
-            var namingOptions = _libraryManager.GetNamingOptions();
-            var libraryOptions = _libraryManager.GetLibraryOptions(item);
             var currentStreams = item.GetMediaStreams()
                 .FindAll(i =>
                     !(i.IsExternal && i.Type == MediaStreamType.Subtitle && i.Protocol == MediaProtocol.File));
             var startIndex = currentStreams.Count == 0 ? 0 : currentStreams.Max(i => i.Index) + 1;
 
-            if (GetExternalSubtitleStreams.Invoke(SubtitleResolver,
-                    new object[] { item, startIndex, directoryService, namingOptions, false }) is List<MediaStream> externalSubtitleStreams)
+
+            if (GetExternalSubtitleStreams(item, startIndex, directoryService, false) is { } externalSubtitleStreams)
             {
                 foreach (var subtitleStream in externalSubtitleStreams)
                 {
                     var extension = Path.GetExtension(subtitleStream.Path);
                     if (!string.IsNullOrEmpty(extension) && ProbeExtensions.Contains(extension))
                     {
-                        if (UpdateExternalSubtitleStream.Invoke(FFProbeSubtitleInfo,
-                                new object[]
-                                {
-                                    item, subtitleStream, refreshOptions, libraryOptions, cancellationToken
-                                }) is Task<bool> subtitleTask && !await subtitleTask.ConfigureAwait(false))
+                        if (UpdateExternalSubtitleStream(item, subtitleStream, refreshOptions, cancellationToken) is
+                                { } subtitleTask && !await subtitleTask.ConfigureAwait(false))
                         {
-                            _logger.Warn("No result when probing external subtitle file: {0}",
-                                subtitleStream.Path);
+                            _logger.Warn("No result when probing external subtitle file: {0}", subtitleStream.Path);
                         }
                     }
 

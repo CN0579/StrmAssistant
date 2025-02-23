@@ -103,6 +103,7 @@ namespace StrmAssistant.Mod
                     BindingFlags.Public | BindingFlags.Instance);
                 _mapLanguageToProviderLanguage = movieDbProviderBase.GetMethod("MapLanguageToProviderLanguage",
                     BindingFlags.NonPublic | BindingFlags.Instance);
+                ReversePatch(PatchTracker, _mapLanguageToProviderLanguage, nameof(MapLanguageToProviderLanguageStub));
                 _getImageLanguagesParam = movieDbProviderBase.GetMethod("GetImageLanguagesParam",
                     BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { typeof(string[]) }, null);
                 _cacheTime = movieDbProviderBase.GetField("CacheTime", BindingFlags.Public | BindingFlags.Static);
@@ -473,6 +474,10 @@ namespace StrmAssistant.Mod
             return true;
         }
 
+        [HarmonyReversePatch]
+        private static string MapLanguageToProviderLanguageStub(object instance, string language, string country,
+            bool exactMatchOnly, string[] providerLanguages) => throw new NotImplementedException();
+
         [HarmonyPostfix]
         private static void MetadataLanguagesPostfix(object __instance, ItemLookupInfo searchInfo,
             string[] providerLanguages, ref string[] __result)
@@ -489,8 +494,8 @@ namespace StrmAssistant.Mod
                 {
                     if (!list.Contains(fallbackLanguage, StringComparer.OrdinalIgnoreCase))
                     {
-                        var mappedLanguage = (string)_mapLanguageToProviderLanguage.Invoke(__instance,
-                            new object[] { fallbackLanguage, null, false, providerLanguages });
+                        var mappedLanguage = MapLanguageToProviderLanguageStub(__instance, fallbackLanguage, null, false,
+                            providerLanguages);
 
                         if (!string.IsNullOrEmpty(mappedLanguage))
                         {

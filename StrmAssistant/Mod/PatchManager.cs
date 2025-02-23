@@ -87,7 +87,8 @@ namespace StrmAssistant.Mod
 
             return patchInfo.Prefixes.Any(p => p.owner == HarmonyMod.Id && p.PatchMethod.DeclaringType == type) ||
                    patchInfo.Postfixes.Any(p => p.owner == HarmonyMod.Id && p.PatchMethod.DeclaringType == type) ||
-                   patchInfo.Transpilers.Any(p => p.owner == HarmonyMod.Id && p.PatchMethod.DeclaringType == type);
+                   patchInfo.Transpilers.Any(p => p.owner == HarmonyMod.Id && p.PatchMethod.DeclaringType == type) ||
+                   patchInfo.Finalizers.Any(p => p.owner == HarmonyMod.Id && p.PatchMethod.DeclaringType == type);
         }
 
         public static bool WasCalledByMethod(Assembly assembly, string callingMethodName)
@@ -101,12 +102,49 @@ namespace StrmAssistant.Mod
             });
         }
 
-        public static bool? IsModSuccess()
+        public static bool IsModSuccess()
         {
-            if (RuntimeInformation.ProcessArchitecture != Architecture.X64) return null;
-
             return PatchTrackerList.Where(p => p.IsSupported)
                 .All(p => p.FallbackPatchApproach == p.DefaultPatchApproach);
+        }
+
+        public static bool ReversePatch(PatchTracker tracker, MethodBase targetMethod, string stub)
+        {
+            if (tracker.FallbackPatchApproach != PatchApproach.Harmony) return false;
+
+            if (targetMethod is null)
+            {
+                Plugin.Instance.Logger.Warn($"{tracker.PatchType.Name} Init Failed");
+                tracker.FallbackPatchApproach = PatchApproach.None;
+                return false;
+            }
+
+            var stubMethod = GetHarmonyMethod(tracker.PatchType, stub);
+
+            if (stubMethod != null)
+            {
+                try
+                {
+                    HarmonyMod.CreateReversePatcher(targetMethod, stubMethod).Patch();
+
+                    Plugin.Instance.Logger.Debug(
+                        $"{nameof(ReversePatch)} {(targetMethod.DeclaringType != null ? targetMethod.DeclaringType.Name + "." : string.Empty)}{targetMethod.Name} for {tracker.PatchType.Name} Success");
+
+                    return true;
+                }
+                catch (Exception he)
+                {
+                    Plugin.Instance.Logger.Debug(
+                        $"{nameof(ReversePatch)} {targetMethod.Name} for {tracker.PatchType.Name} Failed");
+                    Plugin.Instance.Logger.Debug(he.Message);
+                    Plugin.Instance.Logger.Debug(he.StackTrace);
+                    tracker.FallbackPatchApproach = PatchApproach.Reflection;
+
+                    Plugin.Instance.Logger.Warn($"{tracker.PatchType.Name} Init Failed");
+                }
+            }
+
+            return false;
         }
 
         public static bool PatchUnpatch(PatchTracker tracker, bool apply, MethodBase targetMethod, string prefix = null,

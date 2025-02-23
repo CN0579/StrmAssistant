@@ -1,4 +1,5 @@
-﻿using MediaBrowser.Controller.Entities;
+﻿using HarmonyLib;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Persistence;
@@ -33,9 +34,10 @@ namespace StrmAssistant.Common
         private const string MediaInfoFileExtension = "-mediainfo.json";
 
         private static readonly PatchTracker PatchTracker =
-            new PatchTracker(typeof(MediaInfoApi), PatchApproach.Reflection);
+            new PatchTracker(typeof(MediaInfoApi),
+                Plugin.Instance.IsModSupported ? PatchApproach.Harmony : PatchApproach.Reflection);
 
-        private readonly bool _fallbackProbeApproach;
+        private readonly bool _fallbackApproach;
         private readonly MethodInfo _getPlaybackMediaSources;
         private readonly MethodInfo _getStaticMediaSources;
         
@@ -75,7 +77,7 @@ namespace StrmAssistant.Common
                                 typeof(BaseItem), typeof(bool), typeof(bool), typeof(bool), typeof(LibraryOptions),
                                 typeof(DeviceProfile), typeof(User)
                             });
-                    _fallbackProbeApproach = true;
+                    _fallbackApproach = true;
                 }
                 catch (Exception e)
                 {
@@ -87,6 +89,13 @@ namespace StrmAssistant.Common
                 {
                     _logger.Warn($"{PatchTracker.PatchType.Name} Init Failed");
                     PatchTracker.FallbackPatchApproach = PatchApproach.None;
+                }
+                else if (Plugin.Instance.IsModSupported)
+                {
+                    PatchManager.ReversePatch(PatchTracker, _getPlaybackMediaSources,
+                        nameof(GetPlaybackMediaSourcesStub));
+                    PatchManager.ReversePatch(PatchTracker, _getStaticMediaSources,
+                        nameof(GetStaticMediaSourcesStub));
                 }
             }
 
@@ -112,64 +121,86 @@ namespace StrmAssistant.Common
             }
         }
 
-        private async Task<List<MediaSourceInfo>> GetPlaybackMediaSourcesByApi(BaseItem item,
+        [HarmonyReversePatch]
+        private static async Task<List<MediaSourceInfo>> GetPlaybackMediaSourcesStub(IMediaSourceManager instance,
+            BaseItem item, User user, bool allowMediaProbe, string probeMediaSourceId, bool enablePathSubstitution,
+            bool fillChapters, DeviceProfile deviceProfile, CancellationToken cancellationToken) =>
+            throw new NotImplementedException();
+
+        [HarmonyReversePatch]
+        private static List<MediaSourceInfo> GetStaticMediaSourcesStub(IMediaSourceManager instance, BaseItem item,
+            bool enableAlternateMediaSources, bool enablePathSubstitution, bool fillChapters,
+            LibraryOptions libraryOptions, DeviceProfile deviceProfile, User user = null) =>
+            throw new NotImplementedException();
+
+        private Task<List<MediaSourceInfo>> GetPlaybackMediaSourcesByApi(BaseItem item, string probeMediaSourceId,
             CancellationToken cancellationToken)
         {
-            return await _mediaSourceManager
-                .GetPlayackMediaSources(item, null, true, item.GetDefaultMediaSourceId(), false, null,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            return _mediaSourceManager
+                .GetPlayackMediaSources(item, null, true, probeMediaSourceId, false, null,
+                    cancellationToken);
         }
 
-        private async Task<List<MediaSourceInfo>> GetPlaybackMediaSourcesByReflection(BaseItem item,
-            CancellationToken cancellationToken)
+        private Task<List<MediaSourceInfo>> GetPlaybackMediaSourcesByRef(BaseItem item,
+            string probeMediaSourceId, CancellationToken cancellationToken)
         {
-            //Method Signature:
-            //Task<List<MediaSourceInfo>> GetPlayackMediaSources(BaseItem item, User user, bool allowMediaProbe,
-            //    string probeMediaSourceId, bool enablePathSubstitution, bool fillChapters, DeviceProfile deviceProfile,
-            //    CancellationToken cancellationToken);
-            return await ((Task<List<MediaSourceInfo>>)_getPlaybackMediaSources.Invoke(_mediaSourceManager,
-                new object[]
-                {
-                    item, null, true, item.GetDefaultMediaSourceId(), true, false, null, cancellationToken
-                })).ConfigureAwait(false);
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    return GetPlaybackMediaSourcesStub(_mediaSourceManager, item, null, true, probeMediaSourceId,
+                        false, false, null, cancellationToken);
+                case PatchApproach.Reflection:
+                    return (Task<List<MediaSourceInfo>>)_getPlaybackMediaSources.Invoke(_mediaSourceManager,
+                        new object[]
+                        {
+                            item, null, true, probeMediaSourceId, false, false, null, cancellationToken
+                        });
+                default:
+                    throw new NotImplementedException();
+            }
         }
 
-        public async Task<List<MediaSourceInfo>> GetPlaybackMediaSources(BaseItem item,
-            CancellationToken cancellationToken)
+        public Task<List<MediaSourceInfo>> GetPlaybackMediaSources(BaseItem item, CancellationToken cancellationToken)
         {
-            return await (!_fallbackProbeApproach
-                ? GetPlaybackMediaSourcesByApi(item, cancellationToken)
-                : GetPlaybackMediaSourcesByReflection(item, cancellationToken)).ConfigureAwait(false);
+            var mediaSourceId = item.GetDefaultMediaSourceId();
+
+            return !_fallbackApproach
+                ? GetPlaybackMediaSourcesByApi(item, mediaSourceId, cancellationToken)
+                : GetPlaybackMediaSourcesByRef(item, mediaSourceId, cancellationToken);
         }
 
-        private List<MediaSourceInfo> GetStaticMediaSourcesByApi(BaseItem item, bool enableAlternateMediaSources)
+        private List<MediaSourceInfo> GetStaticMediaSourcesByApi(BaseItem item, bool enableAlternateMediaSources,
+            LibraryOptions libraryOptions)
         {
             return _mediaSourceManager.GetStaticMediaSources(item, enableAlternateMediaSources, false,
-                _libraryManager.GetLibraryOptions(item), null, null);
+                libraryOptions, null, null);
         }
 
-        private List<MediaSourceInfo> GetStaticMediaSourcesByReflection(BaseItem item, bool enableAlternateMediaSources)
+        private List<MediaSourceInfo> GetStaticMediaSourcesByRef(BaseItem item, bool enableAlternateMediaSources,
+            LibraryOptions libraryOptions)
         {
-            //Method Signature:
-            //Task<List<MediaSourceInfo>> GetStaticMediaSources(BaseItem item, bool enableAlternateMediaSources,
-            //    bool enablePathSubstitution, bool fillChapters, LibraryOptions libraryOptions,
-            //    DeviceProfile deviceProfile, User user = null)
-            return (List<MediaSourceInfo>)_getStaticMediaSources.Invoke(_mediaSourceManager,
-                new object[]
-                {
-                    item, enableAlternateMediaSources, false, false, _libraryManager.GetLibraryOptions(item), null,
-                    null
-                });
+            switch (PatchTracker.FallbackPatchApproach)
+            {
+                case PatchApproach.Harmony:
+                    return GetStaticMediaSourcesStub(_mediaSourceManager, item, enableAlternateMediaSources, false,
+                        false, libraryOptions, null, null);
+                case PatchApproach.Reflection:
+                    return (List<MediaSourceInfo>)_getStaticMediaSources.Invoke(_mediaSourceManager,
+                        new object[] { item, enableAlternateMediaSources, false, false, libraryOptions, null, null });
+                default:
+                    throw new NotImplementedException();
+            }
         }
 
         public List<MediaSourceInfo> GetStaticMediaSources(BaseItem item, bool enableAlternateMediaSources)
         {
-            return !_fallbackProbeApproach
-                ? GetStaticMediaSourcesByApi(item, enableAlternateMediaSources)
-                : GetStaticMediaSourcesByReflection(item, enableAlternateMediaSources);
+            var options = _libraryManager.GetLibraryOptions(item);
+
+            return !_fallbackApproach
+                ? GetStaticMediaSourcesByApi(item, enableAlternateMediaSources, options)
+                : GetStaticMediaSourcesByRef(item, enableAlternateMediaSources, options);
         }
-        
+
         public static string GetMediaInfoJsonPath(BaseItem item)
         {
             var jsonRootFolder = Plugin.Instance.MediaInfoExtractStore.GetOptions().MediaInfoJsonRootFolder;

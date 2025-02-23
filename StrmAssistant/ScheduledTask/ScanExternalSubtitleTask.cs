@@ -95,7 +95,7 @@ namespace StrmAssistant.ScheduledTask
 
                         var currentCount = Interlocked.Increment(ref current);
                         progress.Report(currentCount / total * 100);
-                        _logger.Info("MediaInfoPersist - Progress " + currentCount + "/" + total + " - " +
+                        _logger.Info("ExternalSubtitle - Progress " + currentCount + "/" + total + " - " +
                                      "Task " + taskIndex + ": " + taskItem.Path);
                     }
                 }, cancellationToken);
