@@ -781,9 +781,12 @@ namespace StrmAssistant.Common
 
             foreach (var library in libraries)
             {
-                if (!library.LibraryOptions.EnableAutomaticSeriesGrouping)
+                var options = library.LibraryOptions;
+
+                if (!options.EnableAutomaticSeriesGrouping && long.TryParse(library.ItemId, out var itemId))
                 {
-                    library.LibraryOptions.EnableAutomaticSeriesGrouping = true;
+                    options.EnableAutomaticSeriesGrouping = true;
+                    CollectionFolder.SaveLibraryOptions(itemId, options);
                 }
             }
         }

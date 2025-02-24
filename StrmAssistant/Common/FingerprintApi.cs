@@ -336,9 +336,6 @@ namespace StrmAssistant.Common
         public List<Episode> FetchIntroPreExtractTaskItems()
         {
             var markerEnabledLibraryScope = Plugin.Instance.IntroSkipStore.GetOptions().MarkerEnabledLibraryScope;
-            var introDetectionFingerprintMinutes =
-                Plugin.Instance.IntroSkipStore.GetOptions().IntroDetectionFingerprintMinutes;
-            UpdateLibraryIntroDetectionFingerprintLength(markerEnabledLibraryScope, introDetectionFingerprintMinutes);
 
             var itemsFingerprintQuery = new InternalItemsQuery
             {
@@ -379,7 +376,6 @@ namespace StrmAssistant.Common
             var markerEnabledLibraryScope = Plugin.Instance.IntroSkipStore.GetOptions().MarkerEnabledLibraryScope;
             var introDetectionFingerprintMinutes =
                 Plugin.Instance.IntroSkipStore.GetOptions().IntroDetectionFingerprintMinutes;
-            UpdateLibraryIntroDetectionFingerprintLength(markerEnabledLibraryScope, introDetectionFingerprintMinutes);
 
             var itemsFingerprintQuery = new InternalItemsQuery
             {
@@ -417,29 +413,29 @@ namespace StrmAssistant.Common
             return items;
         }
 
-        public void UpdateLibraryIntroDetectionFingerprintLength(string currentScope,
-            int currentLength)
+        public void UpdateLibraryIntroDetectionFingerprintLength(int currentLength)
         {
-            var libraryIds = currentScope?.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).ToArray();
-
             var libraries = _libraryManager.GetVirtualFolders()
-                .Where(f => libraryIds != null && libraryIds.Any(id => id != "-1")
-                    ? libraryIds.Contains(f.Id)
-                    : f.LibraryOptions.EnableMarkerDetection &&
-                      (f.CollectionType == CollectionType.TvShows.ToString() || f.CollectionType is null))
+                .Where(f => f.CollectionType == CollectionType.TvShows.ToString() || f.CollectionType is null)
                 .ToList();
 
             foreach (var library in libraries)
             {
-                library.LibraryOptions.IntroDetectionFingerprintLength = currentLength;
+                var options = library.LibraryOptions;
+
+                if (options.IntroDetectionFingerprintLength != currentLength &&
+                    long.TryParse(library.ItemId, out var itemId))
+                {
+                    options.IntroDetectionFingerprintLength = currentLength;
+                    CollectionFolder.SaveLibraryOptions(itemId, options);
+                }
             }
         }
 
         public void UpdateLibraryIntroDetectionFingerprintLength()
         {
-            UpdateLibraryIntroDetectionFingerprintLength(
-                Plugin.Instance.IntroSkipStore.GetOptions().MarkerEnabledLibraryScope,
-                Plugin.Instance.IntroSkipStore.GetOptions().IntroDetectionFingerprintMinutes);
+            UpdateLibraryIntroDetectionFingerprintLength(Plugin.Instance.IntroSkipStore.GetOptions()
+                .IntroDetectionFingerprintMinutes);
         }
 
         public async Task UpdateIntroMarkerForSeason(Season season, CancellationToken cancellationToken)

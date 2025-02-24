@@ -194,7 +194,7 @@ namespace StrmAssistant
         {
             if (e.Argument.Policy.IsAdministrator) LibraryApi.FetchAdminOrderedViews();
         }
-        
+
         private void OnLibraryOptionsUpdated(object sender, GenericEventArgs<Tuple<CollectionFolder, LibraryOptions>> e)
         {
             if (e.Argument.Item1.CollectionType == CollectionType.TvShows.ToString() ||
@@ -202,7 +202,12 @@ namespace StrmAssistant
             {
                 PlaySessionMonitor.UpdateLibraryPathsInScope();
                 FingerprintApi.UpdateLibraryPathsInScope();
-                FingerprintApi.UpdateLibraryIntroDetectionFingerprintLength();
+
+                if (IntroSkipStore.GetOptions().UnlockIntroSkip)
+                    FingerprintApi.UpdateLibraryIntroDetectionFingerprintLength();
+
+                if (ExperienceEnhanceStore.GetOptions().MergeMultiVersion)
+                    LibraryApi.EnsureLibraryEnabledAutomaticSeriesGrouping();
             }
 
             LibraryApi.UpdateLibraryPathsInScope();

@@ -74,7 +74,7 @@ namespace StrmAssistant.ScheduledTask
 
                 var multiply = processMovies ? 1 : 2;
 
-                var alternativeSeries = FindAlternativeSeries(seriesLibraryGroups);
+                var alternativeSeries = FindDuplicateSeries(seriesLibraryGroups);
                 progress.Report(cumulativeProgress += 5.0 * multiply);
 
                 if (alternativeSeries.Any())
@@ -197,7 +197,7 @@ namespace StrmAssistant.ScheduledTask
             return libraryGroups;
         }
 
-        private List<BaseItem> FindAlternativeSeries(long[] parents)
+        private List<BaseItem> FindDuplicateSeries(long[] parents)
         {
             var allSeries = _libraryManager.GetItemList(new InternalItemsQuery
                 {

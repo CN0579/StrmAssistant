@@ -99,7 +99,7 @@ namespace StrmAssistant.Mod
 
         protected override void Prepare(bool apply)
         {
-            PatchOrUnpatchIsShortcut(apply);
+            PatchUnpatchIsShortcut(apply);
 
             PatchUnpatch(PatchTracker, apply, _supportsImageCapture, prefix: nameof(SupportsImageCapturePrefix),
                 postfix: nameof(SupportsImageCapturePostfix));
@@ -193,7 +193,7 @@ namespace StrmAssistant.Mod
             Plugin.Instance.Logger.Info("Current FFmpeg ResourcePool: " + resourcePool?.CurrentCount ?? string.Empty);
         }
 
-        public static void PatchOrUnpatchIsShortcut(bool apply)
+        public static void PatchUnpatchIsShortcut(bool apply)
         {
             PatchUnpatch(Instance.PatchTracker, apply, _isShortcutGetter, ref _isShortcutPatchUsageCount,
                 prefix: nameof(IsShortcutPrefix));

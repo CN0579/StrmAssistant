@@ -53,7 +53,7 @@ namespace StrmAssistant.Mod
 
         protected override void Prepare(bool apply)
         {
-            EnableImageCapture.PatchOrUnpatchIsShortcut(apply);
+            EnableImageCapture.PatchUnpatchIsShortcut(apply);
 
             PatchUnpatch(PatchTracker, apply, _isIntroDetectionSupported,
                 prefix: nameof(IsIntroDetectionSupportedPrefix), postfix: nameof(IsIntroDetectionSupportedPostfix));
