@@ -389,8 +389,7 @@ namespace StrmAssistant.Mod
 
         [HarmonyPrefix]
         private static void IsSaverEnabledForItemPrefix(IMetadataSaver saver, BaseItem item,
-            LibraryOptions libraryOptions, ref ItemUpdateType updateType, bool includeDisabled, bool log,
-            ref bool __result)
+            LibraryOptions libraryOptions, ref ItemUpdateType updateType, bool includeDisabled, ref bool __result)
         {
             if ((updateType & ItemUpdateType.MetadataDownload) == 0) return;
 
