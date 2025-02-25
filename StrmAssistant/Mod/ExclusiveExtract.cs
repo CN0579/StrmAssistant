@@ -38,6 +38,7 @@ namespace StrmAssistant.Mod
 
         private static MethodInfo _canRefreshMetadata;
         private static MethodInfo _canRefreshImage;
+        private static MethodInfo _clearImages;
         private static MethodInfo _isSaverEnabledForItem;
         private static MethodInfo _afterMetadataRefresh;
         private static MethodInfo _runFfProcess;
@@ -79,6 +80,8 @@ namespace StrmAssistant.Mod
             var providerManager = embyProviders.GetType("Emby.Providers.Manager.ProviderManager");
             _canRefreshMetadata = providerManager.GetMethod("CanRefresh", BindingFlags.Static | BindingFlags.NonPublic);
             _canRefreshImage = providerManager.GetMethod("CanRefresh", BindingFlags.Instance | BindingFlags.NonPublic);
+            var itemImageProvider = embyProviders.GetType("Emby.Providers.Manager.ItemImageProvider");
+            _clearImages = itemImageProvider.GetMethod("ClearImages", BindingFlags.Instance | BindingFlags.NonPublic);
             _isSaverEnabledForItem =
                 providerManager.GetMethod("IsSaverEnabledForItem", BindingFlags.Instance | BindingFlags.NonPublic);
             _afterMetadataRefresh =
@@ -124,6 +127,7 @@ namespace StrmAssistant.Mod
             PatchUnpatch(PatchTracker, apply, _canRefreshImage, prefix: nameof(CanRefreshImagePrefix));
             PatchUnpatch(PatchTracker, apply, _canRefreshMetadata, prefix: nameof(CanRefreshMetadataPrefix),
                 postfix: nameof(CanRefreshMetadataPostfix));
+            PatchUnpatch(PatchTracker, apply, _clearImages, prefix: nameof(ClearImagesPrefix));
             PatchUnpatch(PatchTracker, apply, _isSaverEnabledForItem, prefix: nameof(IsSaverEnabledForItemPrefix));
             PatchUnpatch(PatchTracker, apply, _afterMetadataRefresh, prefix: nameof(AfterMetadataRefreshPrefix));
             PatchUnpatch(PatchTracker, apply, _addVirtualFolder, prefix: nameof(RefreshLibraryPrefix));
@@ -264,11 +268,10 @@ namespace StrmAssistant.Mod
                     return true;
                 }
 
-                if (item.HasImage(ImageType.Primary) && (provider is IDynamicImageProvider &&
-                        provider.GetType().Name == "VideoImageProvider" || provider is IRemoteImageProvider) &&
+                if (item.HasImage(ImageType.Primary) && provider is IDynamicImageProvider &&
+                    provider.GetType().Name == "VideoImageProvider" &&
                     (IsExclusiveFeatureSelected(ExclusiveControl.CatchAllBlock) ||
-                     !IsExclusiveFeatureSelected(ExclusiveControl.CatchAllAllow) &&
-                     !options.ReplaceAllImages))
+                     !IsExclusiveFeatureSelected(ExclusiveControl.CatchAllAllow) && !options.ReplaceAllImages))
                 {
                     __result = false;
                     return false;
@@ -384,6 +387,15 @@ namespace StrmAssistant.Mod
             {
                 _ = Plugin.SubtitleApi.UpdateExternalSubtitles(item, CancellationToken.None)
                     .ConfigureAwait(false);
+            }
+        }
+
+        [HarmonyPrefix]
+        private static void ClearImagesPrefix(BaseItem item, ref ImageType[] imageTypesToClear, int numBackdropToKeep)
+        {
+            if (item.HasImage(ImageType.Primary) && imageTypesToClear.Contains(ImageType.Primary))
+            {
+                imageTypesToClear = imageTypesToClear.Where(i => i != ImageType.Primary).ToArray();
             }
         }
 
