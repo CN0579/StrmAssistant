@@ -385,7 +385,8 @@ namespace StrmAssistant.Mod
             }
             else if (CurrentRefreshContext.Value.IsExternalSubtitleChanged)
             {
-                _ = Plugin.SubtitleApi.UpdateExternalSubtitles(item, CancellationToken.None)
+                var directoryService = CurrentRefreshContext.Value.MetadataRefreshOptions.DirectoryService;
+                _ = Plugin.SubtitleApi.UpdateExternalSubtitles(item, directoryService, CancellationToken.None)
                     .ConfigureAwait(false);
             }
         }

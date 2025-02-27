@@ -170,14 +170,23 @@ namespace StrmAssistant.Common
         {
             var currentExternalSubtitleFiles = _libraryManager.GetExternalSubtitleFiles(item.InternalId);
 
-            return GetExternalSubtitleFiles(item, directoryService, false) is
-                       { } newExternalSubtitleFiles &&
-                   !currentExternalSubtitleFiles.SequenceEqual(newExternalSubtitleFiles, StringComparer.Ordinal);
+            try
+            {
+                return GetExternalSubtitleFiles(item, directoryService, false) is
+                           { } newExternalSubtitleFiles &&
+                       !currentExternalSubtitleFiles.SequenceEqual(newExternalSubtitleFiles, StringComparer.Ordinal);
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return false;
         }
 
-        public async Task UpdateExternalSubtitles(BaseItem item, CancellationToken cancellationToken)
+        public async Task UpdateExternalSubtitles(BaseItem item, IDirectoryService directoryService,
+            CancellationToken cancellationToken)
         {
-            var directoryService = new DirectoryService(_logger, _fileSystem);
             var refreshOptions = LibraryApi.MediaInfoRefreshOptions;
             var currentStreams = item.GetMediaStreams()
                 .FindAll(i =>
@@ -192,11 +201,12 @@ namespace StrmAssistant.Common
                     var extension = Path.GetExtension(subtitleStream.Path);
                     if (!string.IsNullOrEmpty(extension) && ProbeExtensions.Contains(extension))
                     {
-                        if (UpdateExternalSubtitleStream(item, subtitleStream, refreshOptions, cancellationToken) is
-                                { } subtitleTask && !await subtitleTask.ConfigureAwait(false))
-                        {
+                        var result =
+                            await UpdateExternalSubtitleStream(item, subtitleStream, refreshOptions, cancellationToken)
+                                .ConfigureAwait(false);
+
+                        if (!result)
                             _logger.Warn("No result when probing external subtitle file: {0}", subtitleStream.Path);
-                        }
                     }
 
                     _logger.Info("ExternalSubtitle - Subtitle Processed: " + subtitleStream.Path);
@@ -208,7 +218,7 @@ namespace StrmAssistant.Common
                 if (Plugin.Instance.MediaInfoExtractStore.GetOptions().PersistMediaInfo &&
                     Plugin.LibraryApi.IsLibraryInScope(item))
                 {
-                    await Plugin.MediaInfoApi.SerializeMediaInfo(item, directoryService, true,
+                    _ = Plugin.MediaInfoApi.SerializeMediaInfo(item, directoryService, true,
                             "External Subtitle Update", cancellationToken)
                         .ConfigureAwait(false);
                 }
