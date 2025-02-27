@@ -142,11 +142,13 @@ namespace StrmAssistant.Common
             }
         }
 
+        #pragma warning disable CS1998
         [HarmonyReversePatch]
         private static async Task<bool> UpdateExternalSubtitleStreamStub(object instance, BaseItem item,
             MediaStream subtitleStream, MetadataRefreshOptions options, LibraryOptions libraryOptions,
             CancellationToken cancellationToken) =>
             throw new NotImplementedException();
+        #pragma warning restore CS1998
 
         private Task<bool> UpdateExternalSubtitleStream(BaseItem item,
             MediaStream subtitleStream, MetadataRefreshOptions options, CancellationToken cancellationToken)

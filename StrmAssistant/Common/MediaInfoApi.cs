@@ -123,11 +123,13 @@ namespace StrmAssistant.Common
             }
         }
 
+        #pragma warning disable CS1998
         [HarmonyReversePatch]
         private static async Task<List<MediaSourceInfo>> GetPlaybackMediaSourcesStub(IMediaSourceManager instance,
             BaseItem item, User user, bool allowMediaProbe, string probeMediaSourceId, bool enablePathSubstitution,
             bool fillChapters, DeviceProfile deviceProfile, CancellationToken cancellationToken) =>
             throw new NotImplementedException();
+        #pragma warning restore CS1998
 
         [HarmonyReversePatch]
         private static List<MediaSourceInfo> GetStaticMediaSourcesStub(IMediaSourceManager instance, BaseItem item,

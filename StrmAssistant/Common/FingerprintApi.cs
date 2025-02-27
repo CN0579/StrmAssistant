@@ -107,10 +107,12 @@ namespace StrmAssistant.Common
             }
         }
 
+        #pragma warning disable CS1998
         [HarmonyReversePatch]
-        private static async Task<Tuple<string, bool>> CreateTitleFingerprintStub(object instance, Episode item, LibraryOptions libraryOptions,
-            IDirectoryService directoryService, CancellationToken cancellationToken) =>
+        private static async Task<Tuple<string, bool>> CreateTitleFingerprintStub(object instance, Episode item,
+            LibraryOptions libraryOptions, IDirectoryService directoryService, CancellationToken cancellationToken) =>
             throw new NotImplementedException();
+        #pragma warning restore CS1998
 
         public Task<Tuple<string, bool>> CreateTitleFingerprint(Episode item, IDirectoryService directoryService,
             CancellationToken cancellationToken)
@@ -137,11 +139,13 @@ namespace StrmAssistant.Common
             return CreateTitleFingerprint(item, directoryService, cancellationToken);
         }
 
+        #pragma warning disable CS1998
         [HarmonyReversePatch]
         private static async Task<object> GetAllFingerprintFilesForSeasonStub(object instance, Season season,
             Episode[] episodes, LibraryOptions libraryOptions, IDirectoryService directoryService,
             CancellationToken cancellationToken) =>
             throw new NotImplementedException();
+        #pragma warning restore CS1998
 
         private Task<object> GetAllFingerprintFilesForSeason(Season season, Episode[] episodes,
             LibraryOptions libraryOptions, IDirectoryService directoryService, CancellationToken cancellationToken)
