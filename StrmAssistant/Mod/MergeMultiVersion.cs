@@ -3,8 +3,11 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Entities;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using static StrmAssistant.Mod.PatchManager;
@@ -62,6 +65,49 @@ namespace StrmAssistant.Mod
             return false;
         }
 
+        private static BaseItem[] GetAllCollectionFolders(Series series)
+        {
+            if (!(series.HasProviderId(MetadataProviders.Tmdb) || series.HasProviderId(MetadataProviders.Imdb) ||
+                  series.HasProviderId(MetadataProviders.Tvdb)))
+            {
+                return Array.Empty<BaseItem>();
+            }
+
+            var allSeries = BaseItem.LibraryManager.GetItemList(new InternalItemsQuery
+            {
+                EnableTotalRecordCount = false,
+                Recursive = false,
+                ExcludeItemIds = new[] { series.InternalId },
+                IncludeItemTypes = new[] { nameof(Series) },
+                AnyProviderIdEquals = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>(MetadataProviders.Tmdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Tmdb)),
+                    new KeyValuePair<string, string>(MetadataProviders.Imdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Imdb)),
+                    new KeyValuePair<string, string>(MetadataProviders.Tvdb.ToString(),
+                        series.GetProviderId(MetadataProviders.Tvdb))
+                }
+            }).Concat(new[] { series }).ToList();
+
+            var collectionFolders = new HashSet<BaseItem>();
+
+            foreach (var item in allSeries)
+            {
+                var options = BaseItem.LibraryManager.GetLibraryOptions(item);
+
+                if (options.EnableAutomaticSeriesGrouping)
+                {
+                    foreach (var library in BaseItem.LibraryManager.GetCollectionFolders(item))
+                    {
+                        collectionFolders.Add(library);
+                    }
+                }
+            }
+
+            return collectionFolders.OrderBy(c => c.InternalId).ToArray();
+        }
+
         [HarmonyPrefix]
         private static void CanRefreshImagePrefix(IImageProvider provider, BaseItem item, LibraryOptions libraryOptions,
             ImageRefreshOptions refreshOptions, bool ignoreMetadataLock, bool ignoreLibraryOptions)
@@ -73,7 +119,7 @@ namespace StrmAssistant.Mod
             if (item is Series series && Plugin.Instance.ExperienceEnhanceStore.GetOptions().MergeSeriesPreference ==
                 MergeScopeOption.GlobalScope)
             {
-                CurrentAllCollectionFolders.Value = Plugin.LibraryApi.GetAllCollectionFolders(series);
+                CurrentAllCollectionFolders.Value = GetAllCollectionFolders(series);
             }
         }
 

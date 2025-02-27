@@ -39,6 +39,9 @@ namespace StrmAssistant.ScheduledTask
         private readonly ILibraryManager _libraryManager;
         private readonly IProviderManager _providerManager;
 
+        private static readonly HashSet<string> CheckKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "tmdb", "imdb", "tvdb" };
+
         public static readonly AsyncLocal<CollectionFolder> CurrentScanLibrary = new AsyncLocal<CollectionFolder>();
 
         public MergeMultiVersionTask(ILibraryManager libraryManager, IProviderManager providerManager)
@@ -213,7 +216,9 @@ namespace StrmAssistant.ScheduledTask
                 .ToList();
 
             var dupSeries = allSeries
-                .SelectMany(item => item.ProviderIds.Select(kvp => new { kvp.Key, kvp.Value, item }))
+                .SelectMany(item =>
+                    item.ProviderIds.Where(kvp => CheckKeys.Contains(kvp.Key))
+                        .Select(kvp => new { kvp.Key, kvp.Value, item }))
                 .GroupBy(x => new { x.Key, x.Value })
                 .Where(g =>
                 {
@@ -313,7 +318,9 @@ namespace StrmAssistant.ScheduledTask
             }).Cast<Movie>().ToList();
 
             var dupMovies = allMovies
-                .SelectMany(item => item.ProviderIds.Select(kvp => new { kvp.Key, kvp.Value, item }))
+                .SelectMany(item =>
+                    item.ProviderIds.Where(kvp => CheckKeys.Contains(kvp.Key))
+                        .Select(kvp => new { kvp.Key, kvp.Value, item }))
                 .GroupBy(kvp => new { kvp.Key, kvp.Value })
                 .Where(g =>
                 {
@@ -367,7 +374,8 @@ namespace StrmAssistant.ScheduledTask
                     var movies = group
                         .SelectMany(
                             rootId => movieLookup.TryGetValue(rootId, out var m) ? m : Enumerable.Empty<Movie>())
-                        .Distinct()
+                        .GroupBy(m => m.InternalId)
+                        .Select(g => g.First())
                         .OfType<BaseItem>()
                         .ToArray();
 

@@ -967,48 +967,5 @@ namespace StrmAssistant.Common
                 folderPaths.Remove(path);
             }
         }
-
-        public BaseItem[] GetAllCollectionFolders(Series series)
-        {
-            if (!(series.HasProviderId(MetadataProviders.Tmdb) || series.HasProviderId(MetadataProviders.Imdb) ||
-                  series.HasProviderId(MetadataProviders.Tvdb)))
-            {
-                return Array.Empty<BaseItem>();
-            }
-
-            var allSeries = _libraryManager.GetItemList(new InternalItemsQuery
-            {
-                EnableTotalRecordCount = false,
-                Recursive = false,
-                ExcludeItemIds = new[] { series.InternalId },
-                IncludeItemTypes = new[] { nameof(Series) },
-                AnyProviderIdEquals = new List<KeyValuePair<string, string>>
-                {
-                    new KeyValuePair<string, string>(MetadataProviders.Tmdb.ToString(),
-                        series.GetProviderId(MetadataProviders.Tmdb)),
-                    new KeyValuePair<string, string>(MetadataProviders.Imdb.ToString(),
-                        series.GetProviderId(MetadataProviders.Imdb)),
-                    new KeyValuePair<string, string>(MetadataProviders.Tvdb.ToString(),
-                        series.GetProviderId(MetadataProviders.Tvdb))
-                }
-            }).Concat(new[] { series }).ToList();
-
-            var collectionFolders = new HashSet<BaseItem>();
-
-            foreach (var item in allSeries)
-            {
-                var options = _libraryManager.GetLibraryOptions(item);
-
-                if (options.EnableAutomaticSeriesGrouping)
-                {
-                    foreach (var library in _libraryManager.GetCollectionFolders(item))
-                    {
-                        collectionFolders.Add(library);
-                    }
-                }
-            }
-
-            return collectionFolders.OrderBy(c => c.InternalId).ToArray();
-        }
     }
 }
