@@ -2,6 +2,7 @@
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Entities;
 using StrmAssistant.Common;
 using System.Linq;
 using System.Reflection;
@@ -16,7 +17,6 @@ namespace StrmAssistant.Mod
         private static MethodInfo _createQueryForEpisodeIntroDetection;
         private static MethodInfo _onFailedToFindIntro;
         private static MethodInfo _detectSequences;
-        private static PropertyInfo _confidenceProperty;
 
         private static readonly AsyncLocal<bool> LogZeroConfidence = new AsyncLocal<bool>();
 
@@ -44,9 +44,6 @@ namespace StrmAssistant.Mod
             var sequenceDetection = embyProviders.GetType("Emby.Providers.Markers.SequenceDetection");
             _detectSequences = sequenceDetection.GetMethods(BindingFlags.Static | BindingFlags.Public)
                 .FirstOrDefault(m => m.Name == "DetectSequences" && m.GetParameters().Length == 8);
-            var sequenceDetectionResult = embyProviders.GetType("Emby.Providers.Markers.SequenceDetectionResult");
-            _confidenceProperty =
-                sequenceDetectionResult.GetProperty("Confidence", BindingFlags.Public | BindingFlags.Instance);
             _onFailedToFindIntro = audioFingerprintManager.GetMethod("OnFailedToFindIntro",
                 BindingFlags.NonPublic | BindingFlags.Static);
         }
@@ -60,7 +57,8 @@ namespace StrmAssistant.Mod
             PatchUnpatch(PatchTracker, apply, _createQueryForEpisodeIntroDetection,
                 postfix: nameof(CreateQueryForEpisodeIntroDetectionPostfix));
             PatchUnpatch(PatchTracker, apply, _detectSequences, postfix: nameof(DetectSequencesPostfix));
-            PatchUnpatch(PatchTracker, apply, _onFailedToFindIntro, prefix: nameof(OnFailedToFindIntroPrefix));
+            PatchUnpatch(PatchTracker, apply, _onFailedToFindIntro, prefix: nameof(OnFailedToFindIntroPrefix),
+                postfix: nameof(OnFailedToFindIntroPostfix));
         }
 
         [HarmonyPrefix]
@@ -115,25 +113,38 @@ namespace StrmAssistant.Mod
         [HarmonyPostfix]
         private static void DetectSequencesPostfix(object __result)
         {
-            if (_confidenceProperty.GetValue(__result) is double confidence && confidence == 0)
+            if (__result != null && Traverse.Create(__result).Property("Confidence").GetValue() is double confidence &&
+                confidence == 0)
             {
                 LogZeroConfidence.Value = true;
             }
         }
 
         [HarmonyPrefix]
-        private static bool OnFailedToFindIntroPrefix(Episode episode)
+        private static bool OnFailedToFindIntroPrefix(Episode episode, out bool __state)
         {
+            __state = false;
+
             if (LogZeroConfidence.Value)
             {
-                BaseItem.ItemRepository.LogIntroDetectionFailureFailure(episode.InternalId,
-                    episode.DateModified.ToUnixTimeSeconds());
+                __state = true;
+                return true;
+            }
 
+            BaseItem.ItemRepository.DeleteChapters(episode.InternalId,
+                new[] { MarkerType.IntroStart, MarkerType.IntroEnd });
+
+            return false;
+        }
+
+        [HarmonyPostfix]
+        private static void OnFailedToFindIntroPostfix(Episode episode, bool __state)
+        {
+            if (__state && Plugin.Instance.MediaInfoExtractStore.GetOptions().PersistMediaInfo)
+            {
                 _ = Plugin.MediaInfoApi.SerializeMediaInfo(episode.InternalId, true, "Zero Fingerprint Confidence",
                     CancellationToken.None);
             }
-
-            return false;
         }
     }
 }
