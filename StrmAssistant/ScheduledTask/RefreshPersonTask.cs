@@ -37,8 +37,9 @@ namespace StrmAssistant.ScheduledTask
 
             var serverPreferredMetadataLanguage = Plugin.MetadataApi.GetServerPreferredMetadataLanguage();
             _logger.Info("Server Preferred Metadata Language: " + serverPreferredMetadataLanguage);
-            var isServerPreferZh = string.Equals(serverPreferredMetadataLanguage.Split('-')[0], "zh",
-                StringComparison.OrdinalIgnoreCase);
+            var isServerPreferZh = !string.IsNullOrEmpty(serverPreferredMetadataLanguage) && string.Equals(
+                serverPreferredMetadataLanguage.Split('-')[0], "zh", StringComparison.OrdinalIgnoreCase);
+
             if (!isServerPreferZh)
             {
                 progress.Report(100.0);

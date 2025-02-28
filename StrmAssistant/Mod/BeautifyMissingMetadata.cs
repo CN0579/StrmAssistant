@@ -61,8 +61,8 @@ namespace StrmAssistant.Mod
 
             var checkItem = items.FirstOrDefault();
 
-            if (checkItem is null || !checkItem.GetPreferredMetadataLanguage()
-                    .Equals("zh-CN", StringComparison.OrdinalIgnoreCase))
+            if (checkItem is null || !string.Equals(checkItem.GetPreferredMetadataLanguage(), "zh-CN",
+                    StringComparison.OrdinalIgnoreCase))
                 return;
 
             if (checkItem.ExtraType == ExtraType.AdditionalPart)
