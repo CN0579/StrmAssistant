@@ -6,9 +6,11 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.MediaInfo;
 using MediaBrowser.Model.Services;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -42,6 +44,7 @@ namespace StrmAssistant.Mod
         private static MethodInfo _isSaverEnabledForItem;
         private static MethodInfo _afterMetadataRefresh;
         private static MethodInfo _runFfProcess;
+        private static MethodInfo _getInputArgument;
         private static PropertyInfo _standardOutput;
         private static PropertyInfo _standardError;
 
@@ -92,6 +95,9 @@ namespace StrmAssistant.Mod
                 mediaEncodingAssembly.GetType("Emby.Server.MediaEncoding.Probing.MediaProbeManager");
             _runFfProcess =
                 mediaProbeManager.GetMethod("RunFfProcess", BindingFlags.Instance | BindingFlags.NonPublic);
+            var encodingHelpers = mediaEncodingAssembly.GetType("Emby.Server.MediaEncoding.Encoder.EncodingHelpers");
+            _getInputArgument =
+                encodingHelpers.GetMethod("GetInputArgument", BindingFlags.Static | BindingFlags.Public);
             var processRunAssembly = Assembly.Load("Emby.ProcessRun");
             var processResult = processRunAssembly.GetType("Emby.ProcessRun.Common.ProcessResult");
             _standardOutput = processResult.GetProperty("StandardOutput");
@@ -143,6 +149,7 @@ namespace StrmAssistant.Mod
         {
             PatchUnpatch(PatchTracker, true, _runFfProcess, prefix: nameof(RunFfProcessPrefix),
                 postfix: nameof(RunFfProcessPostfix));
+            PatchUnpatch(PatchTracker, true, _getInputArgument, prefix: nameof(GetInputArgumentPrefix));
         }
 
         public static void AllowExtractInstance(BaseItem item)
@@ -164,6 +171,18 @@ namespace StrmAssistant.Mod
             {
                 timeoutMs = 60000 * Plugin.Instance.MainOptionsStore.GetOptions().GeneralOptions.MaxConcurrentCount;
             }
+        }
+
+        [HarmonyPrefix]
+        private static bool GetInputArgumentPrefix(string input, MediaProtocol protocol, ref string __result)
+        {
+            if (protocol == MediaProtocol.Http)
+            {
+                __result = string.Format(CultureInfo.InvariantCulture, "\"{0}\"", input);
+                return false;
+            }
+
+            return true;
         }
 
         [HarmonyPostfix]
